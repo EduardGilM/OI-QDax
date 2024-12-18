@@ -13,6 +13,7 @@ from qdax.environments.base_wrappers import QDEnv, StateDescriptorResetWrapper
 from qdax.environments.bd_extractors import (
     get_feet_contact_proportion,
     get_final_xy_position,
+    get_lz76_complexity
 )
 from qdax.environments.exploration_wrappers import MazeWrapper, TrapWrapper
 from qdax.environments.humanoidtrap import HumanoidTrap
@@ -23,7 +24,7 @@ from qdax.environments.locomotion_wrappers import (
     XYPositionWrapper,
 )
 from qdax.environments.pointmaze import PointMaze
-from qdax.environments.wrappers import CompletedEvalWrapper
+from qdax.environments.wrappers import CompletedEvalWrapper, LZ76Wrapper
 
 # experimentally determinated offset (except for antmaze)
 # should be sufficient to have only positive rewards but no guarantee
@@ -40,6 +41,12 @@ reward_offset = {
     "halfcheetah_uni": 9.231,
     "hopper_uni": 0.9,
     "walker2d_uni": 1.413,
+    "halfcheetah_oi": 9.231,  # Use the same offset as 'halfcheetah_uni' or adjust as needed
+    "hopper_oi": 0.9,         # Use the same offset as 'hopper_uni' or adjust as needed
+    "walker2d_oi": 1.413,     # Use the same offset as 'walker2d_uni' or adjust as needed
+    "ant_oi": 3.24,           # Use the same offset as 'ant_uni' or adjust as needed
+    "humanoid_oi": 0.0,       # Use the same offset as 'humanoid_uni' or adjust as needed
+    "pointmaze_oi": 2.3431,   # Use the same offset as 'pointmaze' or adjust as needed
 }
 
 behavior_descriptor_extractor = {
@@ -55,6 +62,12 @@ behavior_descriptor_extractor = {
     "halfcheetah_uni": get_feet_contact_proportion,
     "hopper_uni": get_feet_contact_proportion,
     "walker2d_uni": get_feet_contact_proportion,
+    "pointmaze_oi": get_lz76_complexity,
+    "ant_oi": get_lz76_complexity,
+    "humanoid_oi": get_lz76_complexity,
+    "halfcheetah_oi": get_lz76_complexity,
+    "hopper_oi": get_lz76_complexity,
+    "walker2d_oi": get_lz76_complexity,
 }
 
 _qdax_envs = {
@@ -114,8 +127,40 @@ _qdax_custom_envs = {
         "wrappers": [FeetContactWrapper],
         "kwargs": [{}, {}],
     },
+    "pointmaze_oi": {
+        "env": "pointmaze",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "ant_oi": {
+        "env": "ant",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "humanoid_oi": {
+        "env": "humanoid",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "halfcheetah_oi": {
+        "env": "halfcheetah",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "hopper_oi": {
+        "env": "hopper",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "walker2d_oi": {
+        "env": "walker2d",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
 }
 
+print("Registered environments:")
+print(_qdax_custom_envs)
 
 def create(
     env_name: str,
@@ -154,7 +199,10 @@ def create(
         else:
             kwargs_list = qdax_wrappers_kwargs
         for wrapper, kwargs in zip(wrappers, kwargs_list):  # type: ignore
-            env = wrapper(env, base_env_name, **kwargs)  # type: ignore
+            if wrapper in [FeetContactWrapper, XYPositionWrapper, NoForwardRewardWrapper]:
+                env = wrapper(env, base_env_name, **kwargs)
+            else:
+                env = wrapper(env, **kwargs)
 
     if episode_length is not None:
         env = EpisodeWrapper(env, episode_length, action_repeat)
