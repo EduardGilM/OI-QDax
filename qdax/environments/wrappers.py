@@ -130,16 +130,15 @@ class LZ76Wrapper(Wrapper):
     def __init__(self, env: Env, max_sequence_length: int = 1000, **kwargs):
         super().__init__(env)
         self.max_sequence_length = max_sequence_length
-        # Ajustar max_action_binary_length según el tamaño de la acción
-        self.max_action_binary_length = env.action_size * 32  # 32 bits por int32
+        
+        self.max_action_binary_length = env.action_size * 32  
 
     @property
     def behavior_descriptor_length(self):
-        return 1  # LZ76 complexity is a single value
+        return 1  
 
     def reset(self, rng: jp.ndarray) -> State:
         state = self.env.reset(rng)
-        # Initialize action_sequence as a 2D array
         action_sequence = jnp.zeros(
             (self.max_sequence_length, self.max_action_binary_length), dtype=jnp.uint8
         )
@@ -151,24 +150,19 @@ class LZ76Wrapper(Wrapper):
     def step(self, state: State, action: jp.ndarray) -> State:
         state = self.env.step(state, action)
 
-        # Obtener representación binaria de acción con tamaño fijo
         action_binary, _ = action_to_binary_padded(
             action, self.max_action_binary_length
         )
 
-        # Determinar el índice actual basado en steps y convertirlo a int32
-        current_step = jnp.int32(state.info["steps"] - 1)  # steps comienza en 1
+        current_step = jnp.int32(state.info["steps"] - 1)
 
-        # Actualizar action_sequence en la posición actual
         action_sequence = state.info["action_sequence"]
         action_sequence = action_sequence.at[current_step].set(action_binary)
         state.info["action_sequence"] = action_sequence
 
-        # Calcular la complejidad LZ76
         flattened_sequence = action_sequence.reshape(-1)
         new_complexity = LZ76_jax(flattened_sequence)
         state.info["lz76_complexity"] = new_complexity
 
-        # Actualizar el descriptor de estado
         state.info["state_descriptor"] = state.info["lz76_complexity"]
         return state
