@@ -30,7 +30,7 @@ def compute_metrics_from_repertoire(
     Returns:
         A dictionary with the computed metrics
     """
-    # Extract valid fitnesses (non -inf values)
+
     valid_fitnesses = repertoire.fitnesses[repertoire.fitnesses != -jnp.inf]
     
     metrics = {
@@ -54,15 +54,12 @@ def calculate_oi_metrics(repertoire: MapElitesRepertoire) -> Dict[str, float]:
         Dictionary with metrics related to OI behaviors
     """
     valid_mask = repertoire.fitnesses != -jnp.inf
-    
-    # Get descriptors for valid solutions
+
     valid_descriptors = repertoire.descriptors[valid_mask]
-    
-    # LZ76 is first descriptor, O-Info is second descriptor
+
     lz76_values = valid_descriptors[:, 0] if valid_descriptors.shape[0] > 0 else jnp.array([])
     o_info_values = valid_descriptors[:, 1] if valid_descriptors.shape[0] > 0 else jnp.array([])
-    
-    # Calculate metrics
+
     metrics = {
         "mean_lz76": jnp.mean(lz76_values) if lz76_values.size > 0 else 0.0,
         "max_lz76": jnp.max(lz76_values) if lz76_values.size > 0 else 0.0,
@@ -91,28 +88,23 @@ def prepare_metrics_for_plotting(
         Dictionary with metrics ready for plotting
     """
     processed_metrics = dict(metrics)
-    
-    # Add essential metrics if missing and repertoire is provided
+
     if repertoire is not None:
         final_metrics = compute_metrics_from_repertoire(repertoire)
         oi_metrics = calculate_oi_metrics(repertoire)
-        
-        # Combine all metrics
+
         final_metrics.update(oi_metrics)
         
-        # Add missing metrics
         for key, value in final_metrics.items():
             if key not in processed_metrics:
                 processed_metrics[key] = jnp.array([value])
-    
-    # Ensure all metrics have consistent length
+
     if env_steps is not None:
         for key in processed_metrics:
             if not isinstance(processed_metrics[key], (list, np.ndarray, jnp.ndarray)):
                 processed_metrics[key] = jnp.array([processed_metrics[key]])
                 
             if len(processed_metrics[key]) == 1 and len(env_steps) > 1:
-                # Repeat single value to match env_steps length
                 processed_metrics[key] = jnp.full_like(env_steps, processed_metrics[key][0])
     
     return processed_metrics
@@ -140,14 +132,11 @@ def plot_oi_map_elites_results(
     Returns:
         Figure and axes with plots
     """
-    # Prepare metrics for plotting
     all_metrics = prepare_metrics_for_plotting(metrics, repertoire, env_steps)
-    
-    # Create figure with 6 subplots (2x3 grid)
+
     fig, axes = plt.subplots(2, 3, figsize=figsize)
     axes = axes.flatten()
-    
-    # Standard QD metrics
+
     if "coverage" in all_metrics:
         axes[0].plot(env_steps, all_metrics["coverage"])
         axes[0].set_xlabel("Environment Steps")
@@ -165,8 +154,7 @@ def plot_oi_map_elites_results(
         axes[2].set_xlabel("Environment Steps")
         axes[2].set_ylabel("QD Score")
         axes[2].set_title("QD Score")
-    
-    # OI-specific metrics
+
     if "mean_lz76" in all_metrics:
         axes[3].plot(env_steps, all_metrics["mean_lz76"])
         axes[3].set_xlabel("Environment Steps")
@@ -179,7 +167,6 @@ def plot_oi_map_elites_results(
         axes[4].set_ylabel("Mean O-Information")
         axes[4].set_title("O-Information")
     
-    # Plot archive visualization
     plot_2d_map_elites_repertoire(
         repertoire=repertoire,
         ax=axes[5],
@@ -223,7 +210,6 @@ def plot_2d_map_elites_repertoire(
     if ax is None:
         _, ax = plt.subplots(figsize=(8, 6))
     
-    # Extract valid solutions
     valid_mask = repertoire.fitnesses != -jnp.inf
     valid_fitnesses = repertoire.fitnesses[valid_mask]
     valid_descriptors = repertoire.descriptors[valid_mask]
@@ -238,16 +224,14 @@ def plot_2d_map_elites_repertoire(
         ax.set_title(title)
         return ax
     
-    # Set color limits
     if vmin is None:
         vmin = jnp.min(valid_fitnesses)
     if vmax is None:
         vmax = jnp.max(valid_fitnesses)
     
-    # Create scatter plot
     sc = ax.scatter(
-        valid_descriptors[:, 0],  # LZ76 Complexity
-        valid_descriptors[:, 1],  # O-Information
+        valid_descriptors[:, 0], 
+        valid_descriptors[:, 1], 
         c=valid_fitnesses,
         cmap=cmap,
         s=20,
@@ -256,11 +240,10 @@ def plot_2d_map_elites_repertoire(
         vmax=vmax,
     )
     
-    # Add colorbar
+
     cbar = plt.colorbar(sc, ax=ax)
     cbar.set_label("Fitness")
-    
-    # Set labels and limits
+
     ax.set_xlim(min_bd, max_bd)
     ax.set_ylim(min_bd, max_bd)
     ax.set_xlabel("LZ76 Complexity")
@@ -270,8 +253,6 @@ def plot_2d_map_elites_repertoire(
     
     return ax
 
-
-# Function to easily use this functionality in the existing plotting framework
 def plot_map_elites_results(
     env_steps: jnp.ndarray,
     metrics: Dict[str, jnp.ndarray],
@@ -292,7 +273,6 @@ def plot_map_elites_results(
     Returns:
         Figure and axes with plots
     """
-    # Use the new plotting function
     return plot_oi_map_elites_results(
         env_steps=env_steps,
         metrics=metrics,
