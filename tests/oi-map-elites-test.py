@@ -36,8 +36,8 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
     batch_size = batch_size
     env_name = env_name
-    episode_length = 10
-    num_iterations = 100
+    episode_length = 100
+    num_iterations = 5
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 1000
@@ -140,147 +140,20 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
         init_variables, centroids, random_key
     )
 
-    # Modificar para guardar métricas entre iteraciones
-    all_metrics = {}
-    env_steps = []
-    total_steps = 0
-    
     # Run the algorithm
-    for i in range(num_iterations):
-        (
-            repertoire,
-            emitter_state,
-            random_key,
-        ), metrics = map_elites.scan_update(
-            (repertoire, emitter_state, random_key),
-            (),
-        )
-        
-        # Actualizar conteo de pasos
-        total_steps += batch_size * episode_length
-        env_steps.append(total_steps)
-        
-        # Almacenar métricas de esta iteración
-        for k, v in metrics.items():
-            if k not in all_metrics:
-                all_metrics[k] = []
-            all_metrics[k].append(v)
-        
-        # Imprimir progreso
-        if (i + 1) % max(1, num_iterations // 10) == 0:
-            print(f"Iteration {i + 1}/{num_iterations} completed")
-    
-    # Convertir listas de métricas a arrays para plotting
-    for k in all_metrics:
-        all_metrics[k] = jnp.array(all_metrics[k])
-    
-    # Visualizar resultados
-    try:
-        import matplotlib.pyplot as plt
-        from qdax.utils.plotting_utils import plot_map_elites_results, calculate_oi_metrics
-        
-        # Convertir env_steps a array
-        env_steps = jnp.array(env_steps)
-        
-        # Calcular métricas específicas de OI para visualización
-        oi_metrics = calculate_oi_metrics(repertoire)
-        print("\nLZ76 and O-Information Metrics:")
-        for k, v in oi_metrics.items():
-            print(f"  {k}: {v:.4f}")
-        
-        # Crear figuras
-        print("\nGenerating visualization...")
-        
-        # 1. Plot de métricas generales y mapa
-        fig, axes = plot_map_elites_results(
-            env_steps=env_steps,
-            metrics=all_metrics,
-            repertoire=repertoire,
-            min_bd=min_bd,
-            max_bd=max_bd
-        )
-        
-        # 2. Plot del espacio de comportamiento con LZ76 vs O-Info
-        fig2, ax2 = plt.subplots(figsize=(10, 8))
-        
-        # Extraer datos del repertorio
-        valid_mask = repertoire.fitnesses != -jnp.inf
-        valid_fitnesses = repertoire.fitnesses[valid_mask]
-        valid_descriptors = repertoire.descriptors[valid_mask]
-        
-        if len(valid_descriptors) > 0:
-            # Scatter plot coloreado por fitness
-            scatter = ax2.scatter(
-                valid_descriptors[:, 0],  # LZ76
-                valid_descriptors[:, 1],  # O-Info
-                c=valid_fitnesses,
-                cmap='viridis',
-                s=50,
-                alpha=0.7
-            )
-            
-            # Añadir colorbar
-            cbar = plt.colorbar(scatter, ax=ax2)
-            cbar.set_label('Fitness')
-            
-            # Configurar ejes
-            ax2.set_xlabel('LZ76 Complexity')
-            ax2.set_ylabel('O-Information')
-            ax2.set_title(f'Behavior Space: {env_name}')
-            ax2.grid(True, linestyle='--', alpha=0.7)
-            
-            # Mostrar estadísticas
-            stats_text = (
-                f"Max Fitness: {jnp.max(valid_fitnesses):.2f}\n"
-                f"Mean Fitness: {jnp.mean(valid_fitnesses):.2f}\n"
-                f"Solutions: {len(valid_fitnesses)}\n"
-                f"LZ76 Range: [{jnp.min(valid_descriptors[:, 0]):.2f}, {jnp.max(valid_descriptors[:, 0]):.2f}]\n"
-                f"O-Info Range: [{jnp.min(valid_descriptors[:, 1]):.2f}, {jnp.max(valid_descriptors[:, 1]):.2f}]"
-            )
-            
-            ax2.text(
-                0.02, 0.98, stats_text,
-                transform=ax2.transAxes,
-                verticalalignment='top',
-                bbox=dict(boxstyle='round', facecolor='white', alpha=0.8)
-            )
-        else:
-            ax2.text(0.5, 0.5, "No valid solutions found", ha='center', va='center')
-        
-        # Guardar figuras
-        figure_dir = "./figures"
-        import os
-        os.makedirs(figure_dir, exist_ok=True)
-        
-        fig_path1 = f"{figure_dir}/{env_name}_metrics.png"
-        fig_path2 = f"{figure_dir}/{env_name}_behavior_space.png"
-        
-        fig.savefig(fig_path1, dpi=300, bbox_inches='tight')
-        fig2.savefig(fig_path2, dpi=300, bbox_inches='tight')
-        
-        print(f"Figures saved to:\n  {fig_path1}\n  {fig_path2}")
-        
-        # Mostrar las figuras
-        plt.show()
-        
-    except ImportError as e:
-        print(f"Could not visualize results: {e}")
-        
-    except Exception as e:
-        print(f"Error during visualization: {e}")
-    
+    (
+        repertoire,
+        emitter_state,
+        random_key,
+    ), metrics = jax.lax.scan(
+        map_elites.scan_update,
+        (repertoire, emitter_state, random_key),
+        (),
+        length=num_iterations,
+    )
+
     assert repertoire is not None
-    return repertoire
 
 
 if __name__ == "__main__":
-    # Parámetros configurables para las pruebas
-    ENV_NAME = "halfcheetah_oi"
-    BATCH_SIZE = 10
-    
-    print(f"Running OI Map-Elites test with environment: {ENV_NAME}, batch size: {BATCH_SIZE}")
-    
-    # Ejecutar la prueba y obtener el repertorio final
-    final_repertoire = test_lz76_wrapper(env_name=ENV_NAME, batch_size=BATCH_SIZE)
-    
-    print("\nTest completed successfully")
+    test_lz76_wrapper(env_name="halfcheetah_oi", batch_size=10)
