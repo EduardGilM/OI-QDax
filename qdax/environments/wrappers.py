@@ -132,11 +132,18 @@ class LZ76Wrapper(Wrapper):
         self.max_sequence_length = max_sequence_length
         self.max_action_binary_length = env.action_size * 32
 
-        self.lz76_window = max_sequence_length 
-        self.oi_window = 20 
+        # Usar diferentes tamaños de ventana para cada métrica
+        self.lz76_window = kwargs.get('lz76_window', self.max_sequence_length)
+        self.oi_window = kwargs.get('oi_window', 10)
         
-        self.lz76_scaling = kwargs.get('lz76_scaling', 0.01) 
-        self.oi_scaling = kwargs.get('oi_scaling', 1.0) 
+        # Semilla para inicialización
+        self.init_key = jax.random.PRNGKey(42)
+        
+        # Guardar valores mínimos y máximos para normalización
+        self.lz76_min = jnp.array(0.0, dtype=jnp.float32)
+        self.lz76_max = jnp.array(100.0, dtype=jnp.float32)  # Valor esperado máximo
+        self.oi_min = jnp.array(-1.0, dtype=jnp.float32)  # O-Info puede ser negativa
+        self.oi_max = jnp.array(1.0, dtype=jnp.float32)
         
     @property
     def action_size(self):
@@ -149,21 +156,31 @@ class LZ76Wrapper(Wrapper):
     def reset(self, rng: jp.ndarray) -> State:
         state = self.env.reset(rng)
 
-        action_sequence_lz76 = jnp.zeros(
+        # Inicializar secuencias para LZ76 y O-Info con diferentes patrones
+        self.init_key, subkey1, subkey2 = jax.random.split(self.init_key, 3)
+        
+        # Para LZ76: secuencia binaria inicializada a ceros
+        action_sequence = jnp.zeros(
             (self.max_sequence_length, self.max_action_binary_length), dtype=jnp.uint8
         )
-        action_sequence_oi = jnp.zeros(
+        
+        # Para O-Info: secuencia de acciones inicializada con pequeñas diferencias
+        action_sequence_raw = jnp.zeros(
             (self.max_sequence_length, self.action_size), dtype=jnp.float32
         )
         
-        state.info["action_sequence_lz76"] = action_sequence_lz76
-        state.info["action_sequence_oi"] = action_sequence_oi
-        state.info["lz76_complexity"] = jnp.array(0, dtype=jnp.int32)
-        state.info["o_info_value"] = jnp.array(0.0, dtype=jnp.float32)
+        # Guardar secuencias en el estado
+        state.info["action_sequence"] = action_sequence
+        state.info["action_sequence_raw"] = action_sequence_raw
         
+        # Inicializar con valores diferentes para asegurar que no coincidan
+        state.info["lz76_complexity"] = jnp.array(0.2, dtype=jnp.float32)
+        state.info["o_info_value"] = jnp.array(0.1, dtype=jnp.float32)
+        
+        # Descriptor de estado con valores diferentes
         state.info["state_descriptor"] = jnp.array([
-            jnp.float32(state.info["lz76_complexity"]), 
-            jnp.float32(0.1) 
+            state.info["lz76_complexity"], 
+            state.info["o_info_value"]
         ])
         return state
 
@@ -171,84 +188,105 @@ class LZ76Wrapper(Wrapper):
         state = self.env.step(state, action)
 
         current_step = jnp.int32(state.info["steps"] - 1)
-
+        
+        # PROCESAMIENTO DE LZ76
         action_binary, _ = action_to_binary_padded(
             action, self.max_action_binary_length
         )
-
-        action_sequence_lz76 = state.info["action_sequence_lz76"]
-        action_sequence_lz76 = action_sequence_lz76.at[current_step % self.max_sequence_length].set(action_binary)
         
-        action_sequence_oi = state.info["action_sequence_oi"]
+        # Actualizar secuencia para LZ76
+        action_sequence = state.info["action_sequence"]
+        action_sequence = action_sequence.at[current_step % self.max_sequence_length].set(action_binary)
         
-        modified_action = action * (1.0 + 0.01 * jnp.sin(current_step * 0.1))
-        action_sequence_oi = action_sequence_oi.at[current_step % self.max_sequence_length].set(modified_action)
-
-        flattened_sequence = action_sequence_lz76.reshape(-1)
-
-        step_factor = jnp.tanh(current_step * self.lz76_scaling)
-        new_complexity = jnp.int32(LZ76_jax(flattened_sequence) * (1.0 + step_factor))
-
+        # PROCESAMIENTO DE O-INFORMATION
+        # Actualizar secuencia para O-Info 
+        # Proyectar acciones al intervalo [0, 1] para que la varianza sea más estable
+        normalized_action = (action + 1.0) / 2.0  
+        action_sequence_raw = state.info["action_sequence_raw"]
+        action_sequence_raw = action_sequence_raw.at[current_step % self.max_sequence_length].set(normalized_action)
+        
+        # CALCULAR LZ76
+        # Considerar solo una parte de la secuencia para controlar su crecimiento
+        lz76_end = jnp.minimum(current_step + 1, self.lz76_window)
+        lz76_indices = jnp.arange(self.max_sequence_length) < lz76_end
+        lz_sequence = action_sequence * lz76_indices[:, jnp.newaxis]
+        
+        # Aplanar y calcular complejidad
+        flattened_sequence = lz_sequence.reshape(-1)
+        raw_complexity = jnp.float32(LZ76_jax(flattened_sequence))
+        
+        # Normalizar LZ76 a un rango [0, 1] para que sea comparable con O-Info
+        # Usar un factor dinámico que depende del número de pasos
+        lz76_div_factor = jnp.maximum(50.0, current_step / 2.0)  # Evita divisiones por números pequeños
+        normalized_complexity = raw_complexity / lz76_div_factor
+        normalized_complexity = jnp.minimum(normalized_complexity, 1.0)  # Limitar máximo a 1.0
+        
+        # CALCULAR O-INFORMATION
+        # Usar ventana deslizante para O-Info (últimos oi_window pasos)
         valid_steps = jnp.minimum(current_step + 1, self.max_sequence_length)
         recent_steps = jnp.minimum(valid_steps, self.oi_window)
-
+        
+        # Calcular máscara para seleccionar solo los pasos recientes
         recency_mask = jnp.arange(self.max_sequence_length) >= (valid_steps - recent_steps)
         recency_mask = recency_mask & (jnp.arange(self.max_sequence_length) < valid_steps)
         
-        o_info_factor = jnp.tanh(current_step * self.oi_scaling * 0.05) 
-        o_info_norm = jnp.where(
+        # Calcular O-Info y escalar para que no coincida con LZ76
+        o_info_raw = jnp.where(
             recent_steps > 1,
-            self._compute_o_information(action_sequence_oi, recency_mask) * (0.5 + o_info_factor),
-            jnp.array(0.1, dtype=jnp.float32)  
+            self._compute_o_information(action_sequence_raw, recency_mask),
+            jnp.array(0.1, dtype=jnp.float32)
         )
         
-        state.info["action_sequence_lz76"] = action_sequence_lz76
-        state.info["action_sequence_oi"] = action_sequence_oi
-        state.info["lz76_complexity"] = new_complexity
+        # Escalar para que O-Info esté en un rango diferente a LZ76
+        # LZ76 está normalizado a [0, 1], así que normalizamos O-Info a [-0.5, 0.5]
+        o_info_norm = o_info_raw * 0.5
+        
+        # GUARDAR RESULTADOS
+        state.info["action_sequence"] = action_sequence
+        state.info["action_sequence_raw"] = action_sequence_raw
+        state.info["lz76_complexity"] = normalized_complexity
         state.info["o_info_value"] = o_info_norm
-
+        
+        # Asegurar que los valores en state_descriptor son diferentes y están en rangos adecuados
         state.info["state_descriptor"] = jnp.array([
-            jnp.float32(new_complexity), 
-            jnp.float32(o_info_norm)
+            normalized_complexity,  # LZ76 en rango [0, 1]
+            o_info_norm            # O-Info en rango [-0.5, 0.5]
         ])
         
         return state
     
     def _compute_o_information(self, action_sequence, valid_mask):
-        """Calcula la O-Information utilizando solo acciones recientes con factores dimensionales distintos"""
+        """Calcula la O-Information utilizando solo acciones recientes"""
         mask = valid_mask[:, jnp.newaxis]
         
         masked_actions = action_sequence * mask
 
-        position_factor = jnp.arange(1, self.action_size + 1, dtype=jnp.float32) / self.action_size
-        dimensional_scaling = jnp.reshape(position_factor, (1, -1))
-        masked_actions = masked_actions * dimensional_scaling
-
         joint_values = masked_actions.reshape(-1)
-        joint_entropy = jnp.log(jnp.var(joint_values) + 1e-6)
+
+        joint_entropy = jnp.log(jnp.var(joint_values) + 1e-8)
 
         individual_entropies = jnp.array([
-            jnp.log(jnp.var(masked_actions[:, i]) + 1e-6)
+            jnp.log(jnp.var(masked_actions[:, i]) + 1e-8)
             for i in range(self.action_size)
         ])
         sum_individual_entropies = jnp.sum(individual_entropies)
         
         total_mutual_info = sum_individual_entropies - joint_entropy
-        
+
         pair_mutual_info = 0.0
         for i in range(self.action_size):
-            for j in range(i + 1, self.action_size):
+            for j in range(i + 1, self.action_size): 
                 xi = masked_actions[:, i]
                 xj = masked_actions[:, j]
                 
-                dimension_weight = 1.0 + 0.15 * jnp.sin(i * j * 0.5)
-                
                 pair_data = jnp.stack([xi, xj], axis=-1).reshape(-1)
-                pair_joint_entropy = jnp.log(jnp.var(pair_data) + 1e-6)
+                pair_joint_entropy = jnp.log(jnp.var(pair_data) + 1e-8)
+                
+                dimension_weight = 1.0 + 0.1 * (i + j) / (2 * self.action_size)
                 
                 pair_mi = (individual_entropies[i] + individual_entropies[j] - pair_joint_entropy) * dimension_weight
                 pair_mutual_info += pair_mi
-        
+
         o_info = pair_mutual_info - total_mutual_info
         
-        return 0.2 + 0.6 * jnp.tanh(o_info * 0.5)
+        return jnp.tanh(o_info)
