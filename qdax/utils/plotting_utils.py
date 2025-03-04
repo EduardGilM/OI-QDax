@@ -180,6 +180,7 @@ def plot_2d_map_elites_repertoire(
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
     use_voronoi: bool = True,
+    show_stats: bool = True,
 ) -> Tuple[Optional[Figure], Axes]:
     """
     Plot a 2D visualization of a MAP-Elites repertoire with LZ76 and O-Information as descriptors.
@@ -197,6 +198,7 @@ def plot_2d_map_elites_repertoire(
         xlim: Optional limits for x-axis
         ylim: Optional limits for y-axis
         use_voronoi: Whether to use Voronoi tessellation (like the original plot function)
+        show_stats: Whether to show statistics on the plot
         
     Returns:
         The matplotlib figure and axes
@@ -257,26 +259,30 @@ def plot_2d_map_elites_repertoire(
     valid_fitnesses = fitnesses[valid_mask]
     valid_descriptors = repertoire.descriptors[valid_mask]
     
-    # Voronoi visualization (similar to the original function)
-    if use_voronoi:
-        # Create the regions and vertices from centroids
-        regions, vertices = get_voronoi_finite_polygons_2d(centroids)
-        
-        # Fill the plot with contours (empty cells)
-        for region in regions:
-            polygon = vertices[region]
-            ax.fill(*zip(*polygon), alpha=0.05, edgecolor="black", facecolor="white", lw=1)
-        
-        # Fill the plot with colors (filled cells)
-        for idx, fitness in enumerate(fitnesses):
-            if fitness > -jnp.inf:
-                region = regions[idx]
+    # Voronoi visualization
+    if use_voronoi and len(centroids) > 3:  # Need at least 4 points for Voronoi
+        try:
+            # Create the regions and vertices from centroids
+            regions, vertices = get_voronoi_finite_polygons_2d(centroids)
+            
+            # Fill the plot with contours (empty cells)
+            for region in regions:
                 polygon = vertices[region]
-                ax.fill(*zip(*polygon), alpha=0.8, color=my_cmap(norm(fitness)))
+                ax.fill(*zip(*polygon), alpha=0.05, edgecolor="black", facecolor="white", lw=1)
+            
+            # Fill the plot with colors (filled cells)
+            for idx, fitness in enumerate(fitnesses):
+                if fitness > -jnp.inf:
+                    region = regions[idx]
+                    polygon = vertices[region]
+                    ax.fill(*zip(*polygon), alpha=0.8, color=my_cmap(norm(fitness)))
+        except Exception as e:
+            print(f"Warning: Could not create Voronoi diagram: {e}")
+            use_voronoi = False
     
     # Add scatter points for the valid solutions
     if valid_descriptors.shape[0] > 0:
-        ax.scatter(
+        scatter = ax.scatter(
             valid_descriptors[:, 0],
             valid_descriptors[:, 1],
             c=valid_fitnesses,
@@ -305,12 +311,14 @@ def plot_2d_map_elites_repertoire(
     ax.grid(True, linestyle='--', alpha=0.3)
     
     # Add stats to the plot
-    if jnp.any(valid_mask):
+    if show_stats and jnp.any(valid_mask):
         stats_text = (
             f"Coverage: {compute_coverage(repertoire):.1f}%\n"
             f"Max Fitness: {jnp.max(valid_fitnesses):.2f}\n"
             f"Mean Fitness: {jnp.mean(valid_fitnesses):.2f}\n"
-            f"Solutions: {jnp.sum(valid_mask)}"
+            f"Solutions: {jnp.sum(valid_mask)}\n"
+            f"Max LZ76: {jnp.max(valid_descriptors[:, 0]):.2f}\n"
+            f"Max O-Info: {jnp.max(valid_descriptors[:, 1]):.2f}"
         )
         
         ax.text(

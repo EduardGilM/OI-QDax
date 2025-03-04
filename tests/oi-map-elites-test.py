@@ -1,9 +1,11 @@
 import functools
 from typing import Tuple
+import os
 
 import jax
 import jax.numpy as jnp
 import pytest
+import matplotlib.pyplot as plt
 
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
@@ -15,6 +17,7 @@ from qdax.core.neuroevolution.networks.networks import MLP
 from qdax.custom_types import EnvState, Params, RNGKey
 from qdax.tasks.brax_envs import scoring_function_brax_envs
 from qdax.utils.metrics import default_qd_metrics
+from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map_elites_results
 
 
 def get_mixing_emitter(batch_size: int) -> MixingEmitter:
@@ -37,13 +40,17 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
     batch_size = batch_size
     env_name = env_name
     episode_length = 100
-    num_iterations = 5
+    num_iterations = 100  # Increased for better visualization
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 1000
-    num_centroids = 50
+    num_centroids = 100  # Increased for better coverage
     min_bd = 0.0
     max_bd = 1.0
+
+    # Create output directory for plots if it doesn't exist
+    output_dir = "test_outputs"
+    os.makedirs(output_dir, exist_ok=True)
 
     # Init environment
     env = environments.create(env_name, episode_length=episode_length)
@@ -151,6 +158,34 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
         (),
         length=num_iterations,
     )
+
+    # Create environment steps array
+    env_steps = jnp.arange(num_iterations) * episode_length * batch_size
+
+    # Plot results
+    if not pytest.running():  # Only plot if not running in pytest
+        # Plot evolution of metrics and final archive
+        fig1, axes = plot_oi_map_elites_results(
+            env_steps=env_steps,
+            metrics=metrics,
+            repertoire=repertoire,
+            min_bd=min_bd,
+            max_bd=max_bd,
+        )
+        fig1.savefig(os.path.join(output_dir, f"oi_map_elites_results_{env_name}_{batch_size}.png"))
+        plt.close(fig1)
+
+        # Plot only the archive
+        fig2, ax = plt.subplots(figsize=(10, 10))
+        plot_2d_map_elites_repertoire(
+            repertoire=repertoire,
+            ax=ax,
+            min_bd=min_bd,
+            max_bd=max_bd,
+            title=f"Archive Final - {env_name} (batch_size={batch_size})"
+        )
+        fig2.savefig(os.path.join(output_dir, f"archive_{env_name}_{batch_size}.png"))
+        plt.close(fig2)
 
     assert repertoire is not None
 
