@@ -67,7 +67,10 @@ def LZ76(ss):
 
 def action_to_binary(action: jnp.ndarray) -> jnp.ndarray:
     """Convert actions to a JAX-compatible binary representation."""
-    scaled_action = ((action + 1.0) * 1e8).astype(jnp.int32)
+    # Scale actions to [0, 1] range first
+    scaled_action = (action + 1.0) / 2.0
+    # Convert to 32-bit integer with appropriate scaling
+    scaled_action = (scaled_action * 1e6).astype(jnp.int32)
     binary_rep = jnp.unpackbits(
         scaled_action.view(jnp.uint8), bitorder='big', axis=-1
     )
@@ -85,6 +88,8 @@ def action_to_binary_padded(action: jp.ndarray, max_action_binary_length: int) -
 def LZ76_jax(ss: jnp.ndarray) -> jnp.int32:
     """JAX-compatible implementation of the LZ76 algorithm."""
     n = ss.size
+    if n == 0:
+        return jnp.int32(0)
 
     def cond_fun(state):
         i, k, l, k_max, c = state

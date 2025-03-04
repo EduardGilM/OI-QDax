@@ -133,12 +133,12 @@ class LZ76Wrapper(Wrapper):
         self.max_action_binary_length = env.action_size * 32
 
         self.lz76_window = kwargs.get('lz76_window', self.max_sequence_length) 
-        self.oi_window = kwargs.get('oi_window', 20)  # Increased window for better O-Info estimation
+        self.oi_window = kwargs.get('oi_window', 20)
         
-        # Normalization factors
-        self.max_lz76 = self.max_action_binary_length * self.max_sequence_length / 8  # Theoretical max
-        self.min_o_info = -2.0  # Theoretical minimum for O-Information
-        self.max_o_info = 2.0   # Theoretical maximum for O-Information
+        self.max_lz76 = (self.max_action_binary_length * self.max_sequence_length) / jnp.log2(self.max_action_binary_length * self.max_sequence_length)
+        
+        self.min_o_info = -self.env.action_size / 2.0
+        self.max_o_info = self.env.action_size / 2.0
         
     @property
     def action_size(self):
@@ -163,7 +163,7 @@ class LZ76Wrapper(Wrapper):
         state.info["lz76_complexity"] = jnp.array(0.0, dtype=jnp.float32)
         state.info["o_info_value"] = jnp.array(0.0, dtype=jnp.float32)
         
-        state.info["state_descriptor"] = jnp.array([0.0, 0.0], dtype=jnp.float32)
+        state.info["state_descriptor"] = jnp.array([0.01, 0.01], dtype=jnp.float32)
         return state
 
     def step(self, state: State, action: jp.ndarray) -> State:
@@ -174,45 +174,46 @@ class LZ76Wrapper(Wrapper):
             action, self.max_action_binary_length
         )
         
-        # Update sequences
         action_sequence = state.info["action_sequence"]
         action_sequence = action_sequence.at[current_step % self.max_sequence_length].set(action_binary)
         
         action_sequence_raw = state.info["action_sequence_raw"]
         action_sequence_raw = action_sequence_raw.at[current_step % self.max_sequence_length].set(action)
         
-        # Calculate LZ76 complexity
         valid_sequence_length = jnp.minimum(current_step + 1, self.max_sequence_length)
         sequence_mask = jnp.arange(self.max_sequence_length) < valid_sequence_length
         masked_sequence = action_sequence * sequence_mask[:, jnp.newaxis]
         flattened_sequence = masked_sequence.reshape(-1)
-        
+
         raw_complexity = LZ76_jax(flattened_sequence)
         normalized_complexity = jnp.clip(raw_complexity / self.max_lz76, 0.0, 1.0)
-        
-        # Calculate O-Information
+
         valid_steps = jnp.minimum(current_step + 1, self.max_sequence_length)
         recent_steps = jnp.minimum(valid_steps, self.oi_window)
         
         recency_mask = jnp.arange(self.max_sequence_length) >= (valid_steps - recent_steps)
         recency_mask = recency_mask & (jnp.arange(self.max_sequence_length) < valid_steps)
         
+        normalized_actions = (action_sequence_raw + 1.0) / 2.0
+
         o_info_raw = jnp.where(
             recent_steps > 1,
-            self._compute_o_information(action_sequence_raw, recency_mask),
+            self._compute_o_information(normalized_actions, recency_mask),
             jnp.array(0.0, dtype=jnp.float32)
         )
-        
-        # Normalize O-Information to [0,1]
+
         o_info_norm = (o_info_raw - self.min_o_info) / (self.max_o_info - self.min_o_info)
         o_info_norm = jnp.clip(o_info_norm, 0.0, 1.0)
-        
+
         state.info["action_sequence"] = action_sequence
         state.info["action_sequence_raw"] = action_sequence_raw
         state.info["lz76_complexity"] = normalized_complexity
         state.info["o_info_value"] = o_info_norm
         
-        state.info["state_descriptor"] = jnp.array([normalized_complexity, o_info_norm])
+        state.info["state_descriptor"] = jnp.array([
+            jnp.maximum(normalized_complexity, 0.01),
+            jnp.maximum(o_info_norm, 0.01)
+        ])
         
         return state
     
@@ -220,39 +221,21 @@ class LZ76Wrapper(Wrapper):
         """Calcula la O-Information utilizando solo acciones recientes"""
         mask = valid_mask[:, jnp.newaxis]
         masked_actions = action_sequence * mask
-        
-        # Compute joint entropy using covariance matrix
+
         cov_matrix = jnp.cov(masked_actions.T)
-        joint_entropy = 0.5 * jnp.log(jnp.linalg.det(cov_matrix + jnp.eye(self.action_size) * 1e-8))
-        
-        # Compute individual entropies
+        cov_matrix = cov_matrix + jnp.eye(masked_actions.shape[1]) * 1e-6
+
+        joint_entropy = 0.5 * jnp.log(jnp.linalg.det(cov_matrix))
+
         individual_entropies = jnp.array([
-            0.5 * jnp.log(jnp.var(masked_actions[:, i]) + 1e-8)
-            for i in range(self.action_size)
+            0.5 * jnp.log(jnp.var(masked_actions[:, i]) + 1e-6)
+            for i in range(masked_actions.shape[1])
         ])
         sum_individual_entropies = jnp.sum(individual_entropies)
-        
-        # Total mutual information
-        total_mutual_info = sum_individual_entropies - joint_entropy
-        
-        # Pairwise mutual information
-        pair_mutual_info = 0.0
-        for i in range(self.action_size):
-            for j in range(i + 1, self.action_size):
-                xi = masked_actions[:, i]
-                xj = masked_actions[:, j]
-                
-                # Compute pairwise covariance matrix
-                pair_cov = jnp.cov(jnp.stack([xi, xj]))
-                pair_joint_entropy = 0.5 * jnp.log(jnp.linalg.det(pair_cov + jnp.eye(2) * 1e-8))
-                
-                # Weight based on dimension importance
-                dimension_weight = 1.0 + 0.1 * (i + j) / (2 * self.action_size)
-                
-                pair_mi = (individual_entropies[i] + individual_entropies[j] - pair_joint_entropy) * dimension_weight
-                pair_mutual_info += pair_mi
-        
-        # O-Information calculation
-        o_info = pair_mutual_info - total_mutual_info
+
+        o_info = joint_entropy - sum_individual_entropies
+
+        o_info = jnp.where(jnp.isnan(o_info), 0.0, o_info)
+        o_info = jnp.where(jnp.isinf(o_info), 0.0, o_info)
         
         return o_info

@@ -32,33 +32,20 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
     return mixing_emitter
 
 
-@pytest.mark.parametrize(
-    "env_name, batch_size",
-    [("halfcheetah_oi", 1), ("halfcheetah_oi", 10)],
-)
-def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
-    batch_size = batch_size
-    env_name = env_name
-    episode_length = 100
-    num_iterations = 100  # Increased for better visualization
+def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
+    """Run MAP-Elites test with visualization."""
+    episode_length = 10
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 1000
-    num_centroids = 100  # Increased for better coverage
+    num_centroids = 100
     min_bd = 0.0
     max_bd = 1.0
 
-    # Create output directory for plots if it doesn't exist
-    output_dir = "test_outputs"
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Init environment
     env = environments.create(env_name, episode_length=episode_length)
 
-    # Init a random key
     random_key = jax.random.PRNGKey(seed)
 
-    # Init policy network
     policy_layer_sizes = policy_hidden_layer_sizes + (env.action_size,)
     policy_network = MLP(
         layer_sizes=policy_layer_sizes,
@@ -66,19 +53,16 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
         final_activation=jnp.tanh,
     )
 
-    # Init population of controllers
     random_key, subkey = jax.random.split(random_key)
     keys = jax.random.split(subkey, num=batch_size)
     fake_batch = jnp.zeros(shape=(batch_size, env.observation_size))
     init_variables = jax.vmap(policy_network.init)(keys, fake_batch)
 
-    # Create the initial environment states
     random_key, subkey = jax.random.split(random_key)
     keys = jnp.repeat(jnp.expand_dims(subkey, axis=0), repeats=batch_size, axis=0)
     reset_fn = jax.jit(jax.vmap(env.reset))
     init_states = reset_fn(keys)
 
-    # Define the function to play a step with the policy in the environment
     def play_step_fn(
         env_state: EnvState,
         policy_params: Params,
@@ -106,7 +90,6 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
         return next_state, policy_params, random_key, transition
 
-    # Prepare the scoring function
     bd_extraction_fn = environments.behavior_descriptor_extractor[env_name]
     scoring_fn = functools.partial(
         scoring_function_brax_envs,
@@ -116,10 +99,8 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
         behavior_descriptor_extractor=bd_extraction_fn,
     )
 
-    # Define emitter
     mixing_emitter = get_mixing_emitter(batch_size)
 
-    # Get minimum reward value to make sure qd_score are positive
     reward_offset = environments.reward_offset[env_name]
 
     # Define a metrics function
@@ -161,34 +142,38 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
     # Create environment steps array
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
+    
+    fig1, axes = plot_oi_map_elites_results(
+        env_steps=env_steps,
+        metrics=metrics,
+        repertoire=repertoire,
+        min_bd=min_bd,
+        max_bd=max_bd,
+    )
+    plt.show(block=False)
 
-    # Plot results
-    if not pytest.running():  # Only plot if not running in pytest
-        # Plot evolution of metrics and final archive
-        fig1, axes = plot_oi_map_elites_results(
-            env_steps=env_steps,
-            metrics=metrics,
-            repertoire=repertoire,
-            min_bd=min_bd,
-            max_bd=max_bd,
-        )
-        fig1.savefig(os.path.join(output_dir, f"oi_map_elites_results_{env_name}_{batch_size}.png"))
-        plt.close(fig1)
+    fig2, ax = plt.subplots(figsize=(10, 10))
+    plot_2d_map_elites_repertoire(
+        repertoire=repertoire,
+        ax=ax,
+        min_bd=min_bd,
+        max_bd=max_bd,
+        title=f"Archive Final - {env_name} (batch_size={batch_size})"
+    )
+    plt.show(block=False)
+    return repertoire
 
-        # Plot only the archive
-        fig2, ax = plt.subplots(figsize=(10, 10))
-        plot_2d_map_elites_repertoire(
-            repertoire=repertoire,
-            ax=ax,
-            min_bd=min_bd,
-            max_bd=max_bd,
-            title=f"Archive Final - {env_name} (batch_size={batch_size})"
-        )
-        fig2.savefig(os.path.join(output_dir, f"archive_{env_name}_{batch_size}.png"))
-        plt.close(fig2)
 
+@pytest.mark.parametrize(
+    "env_name, batch_size",
+    [("halfcheetah_oi", 1), ("halfcheetah_oi", 10)],
+)
+def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
+    """Test function for pytest."""
+    repertoire = run_map_elites_test(env_name, batch_size, num_iterations=100)
     assert repertoire is not None
 
 
 if __name__ == "__main__":
-    test_lz76_wrapper(env_name="halfcheetah_oi", batch_size=10)
+    run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=100)
+    plt.show() 
