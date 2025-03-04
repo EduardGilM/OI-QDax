@@ -155,17 +155,17 @@ def plot_oi_map_elites_results(
         axes[2].set_ylabel("QD Score")
         axes[2].set_title("QD Score")
 
-    if "max_lz76" in all_metrics:
-        axes[3].plot(env_steps, all_metrics["max_lz76"])
-        axes[3].set_xlabel("Environment Steps")
-        axes[3].set_ylabel("Max LZ76 Complexity")
-        axes[3].set_title("LZ76 Complexity")
-    
-    if "max_o_info" in all_metrics:
-        axes[4].plot(env_steps, all_metrics["max_o_info"])
-        axes[4].set_xlabel("Environment Steps")
-        axes[4].set_ylabel("Max O-Information")
-        axes[4].set_title("O-Information")
+    #if "max_lz76" in all_metrics:
+    #    axes[3].plot(env_steps, all_metrics["max_lz76"])
+    #    axes[3].set_xlabel("Environment Steps")
+    #    axes[3].set_ylabel("Max LZ76 Complexity")
+    #    axes[3].set_title("LZ76 Complexity")
+    #
+    #if "max_o_info" in all_metrics:
+    #    axes[4].plot(env_steps, all_metrics["max_o_info"])
+    #    axes[4].set_xlabel("Environment Steps")
+    #    axes[4].set_ylabel("Max O-Information")
+    #    axes[4].set_title("O-Information")
     
     plot_2d_map_elites_repertoire(
         repertoire=repertoire,
