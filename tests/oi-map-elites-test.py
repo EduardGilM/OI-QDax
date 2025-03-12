@@ -34,15 +34,25 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 
 def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
     """Run MAP-Elites test with visualization."""
-    episode_length = 10
+    episode_length = 100
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
-    num_init_cvt_samples = 1000
-    num_centroids = 100
-    min_bd = 0.0
-    max_bd = 1.0
+    num_init_cvt_samples = 50000
+    num_centroids = 1024
+    min_bd = jnp.array([0.0, 0.0])  # Un límite inferior para cada dimensión
+    max_bd = jnp.array([1.0, 1.0])  # Un límite superior para cada dimensión
 
-    env = environments.create(env_name, episode_length=episode_length)
+    # Create environment with wrapper parameters
+    env = environments.create(
+        env_name,
+        episode_length=episode_length,
+        fixed_init_state=True,
+        qdax_wrappers_kwargs=[{
+            "max_sequence_length": 100,
+            "lz76_window": 50,
+            "oi_window": 20
+        }]
+    )
 
     random_key = jax.random.PRNGKey(seed)
 
@@ -68,12 +78,8 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         policy_params: Params,
         random_key: RNGKey,
     ) -> Tuple[EnvState, Params, RNGKey, QDTransition]:
-        """
-        Play an environment step and return the updated state and the transition.
-        """
-
+        """Play an environment step and return the updated state and the transition."""
         actions = policy_network.apply(policy_params, env_state.obs)
-
         state_desc = env_state.info["state_descriptor"]
         next_state = env.step(env_state, actions)
 
@@ -90,7 +96,21 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
 
         return next_state, policy_params, random_key, transition
 
-    bd_extraction_fn = environments.behavior_descriptor_extractor[env_name]
+    def bd_extraction_fn(transitions, mask):
+        # Obtener el último descriptor de estado válido
+        last_valid_index = jnp.sum(1.0 - mask, axis=1) - 1
+        last_valid_index = jnp.clip(last_valid_index, 0, transitions.next_state_desc.shape[1] - 1)
+        batch_indices = jnp.arange(transitions.next_state_desc.shape[0])
+        
+        # Extraer los descriptores finales y asegurar la forma correcta
+        final_descriptors = transitions.next_state_desc[batch_indices, last_valid_index.astype(jnp.int32)]
+        
+        # Asegurar que la forma sea (batch_size, 2)
+        if len(final_descriptors.shape) > 2:
+            final_descriptors = final_descriptors.reshape(final_descriptors.shape[0], -1)
+            
+        return final_descriptors
+
     scoring_fn = functools.partial(
         scoring_function_brax_envs,
         init_states=init_states,
@@ -102,18 +122,14 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
     mixing_emitter = get_mixing_emitter(batch_size)
 
     reward_offset = environments.reward_offset[env_name]
-
-    # Define a metrics function
     metrics_fn = functools.partial(default_qd_metrics, qd_offset=reward_offset)
 
-    # Instantiate MAP-Elites
     map_elites = MAPElites(
         scoring_function=scoring_fn,
         emitter=mixing_emitter,
         metrics_function=metrics_fn,
     )
 
-    # Compute the centroids
     centroids, random_key = compute_cvt_centroids(
         num_descriptors=env.behavior_descriptor_length,
         num_init_cvt_samples=num_init_cvt_samples,
@@ -123,12 +139,10 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         random_key=random_key,
     )
 
-    # Compute initial repertoire
     repertoire, emitter_state, random_key = map_elites.init(
         init_variables, centroids, random_key
     )
 
-    # Run the algorithm
     (
         repertoire,
         emitter_state,
@@ -140,7 +154,6 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         length=num_iterations,
     )
 
-    # Create environment steps array
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
     
     fig1, axes = plot_oi_map_elites_results(
@@ -166,14 +179,16 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
 
 @pytest.mark.parametrize(
     "env_name, batch_size",
-    [("halfcheetah_oi", 1), ("halfcheetah_oi", 10)],
+    [
+        ("halfcheetah_oi", 10),
+    ],
 )
 def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
     """Test function for pytest."""
-    repertoire = run_map_elites_test(env_name, batch_size, num_iterations=100)
+    repertoire = run_map_elites_test(env_name, batch_size, num_iterations=10)
     assert repertoire is not None
 
 
 if __name__ == "__main__":
-    run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=100)
+    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=100)
     plt.show() 

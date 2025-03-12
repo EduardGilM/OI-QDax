@@ -202,43 +202,59 @@ class LZ76Wrapper(Wrapper):
 
     def reset(self, rng: jp.ndarray) -> State:
         state = self.env.reset(rng)
+        batch_size = state.obs.shape[0] if len(state.obs.shape) > 1 else 1
 
         action_sequence = jnp.zeros(
-            (self.max_sequence_length, self.max_action_binary_length), dtype=jnp.uint8
+            (batch_size, self.max_sequence_length, self.max_action_binary_length), dtype=jnp.uint8
         )
         action_sequence_raw = jnp.zeros(
-            (self.max_sequence_length, self.action_size), dtype=jnp.float32
+            (batch_size, self.max_sequence_length, self.action_size), dtype=jnp.float32
         )
         
         state.info["action_sequence"] = action_sequence
         state.info["action_sequence_raw"] = action_sequence_raw
-        state.info["lz76_complexity"] = jnp.array(0.0, dtype=jnp.float32)
-        state.info["o_info_value"] = jnp.array(0.0, dtype=jnp.float32)
+        state.info["lz76_complexity"] = jnp.zeros(batch_size, dtype=jnp.float32)
+        state.info["o_info_value"] = jnp.zeros(batch_size, dtype=jnp.float32)
         
-        state.info["state_descriptor"] = jnp.array([0.01, 0.01], dtype=jnp.float32)
+        state.info["state_descriptor"] = jnp.ones((batch_size, 2), dtype=jnp.float32) * 0.01
         return state
 
     def step(self, state: State, action: jp.ndarray) -> State:
         state = self.env.step(state, action)
-
+        
+        if len(action.shape) == 1:
+            action = action[None, :]
+        
+        batch_size = action.shape[0]
         current_step = jnp.int32(state.info["steps"] - 1)
-        action_binary, _ = action_to_binary_padded(
-            action, self.max_action_binary_length
-        )
+ 
+        action_binary_batch = jax.vmap(lambda a: action_to_binary_padded(a, self.max_action_binary_length)[0])(action)
         
         action_sequence = state.info["action_sequence"]
-        action_sequence = action_sequence.at[current_step % self.max_sequence_length].set(action_binary)
-        
         action_sequence_raw = state.info["action_sequence_raw"]
-        action_sequence_raw = action_sequence_raw.at[current_step % self.max_sequence_length].set(action)
+        
+        def update_sequence(seq, new_val, step):
+            return seq.at[step % self.max_sequence_length].set(new_val)
+        
+        action_sequence = jax.vmap(update_sequence)(
+            action_sequence,
+            action_binary_batch,
+            jnp.full(action_binary_batch.shape[0], current_step)
+        )
+        
+        action_sequence_raw = jax.vmap(update_sequence)(
+            action_sequence_raw,
+            action,
+            jnp.full(action.shape[0], current_step)
+        )
         
         valid_sequence_length = jnp.minimum(current_step + 1, self.max_sequence_length)
         sequence_mask = jnp.arange(self.max_sequence_length) < valid_sequence_length
-        masked_sequence = action_sequence * sequence_mask[:, jnp.newaxis]
-        flattened_sequence = masked_sequence.reshape(-1)
-
-        raw_complexity = LZ76_jax(flattened_sequence)
-        normalized_complexity = jnp.clip(raw_complexity / self.max_lz76, 0.0, 1.0)
+        
+        complexities = jax.vmap(lambda seq: LZ76_jax(seq.reshape(-1)))(
+            action_sequence * sequence_mask[None, :, None]
+        )
+        normalized_complexities = jnp.clip(complexities / self.max_lz76, 0.0, 1.0)
 
         valid_steps = jnp.minimum(current_step + 1, self.max_sequence_length)
         recent_steps = jnp.minimum(valid_steps, self.oi_window)
@@ -248,24 +264,26 @@ class LZ76Wrapper(Wrapper):
         
         normalized_actions = (action_sequence_raw + 1.0) / 2.0
 
-        o_info_raw = jnp.where(
+        o_info_values = jax.vmap(lambda acts, mask: jnp.where(
             recent_steps > 1,
-            self._compute_o_information(normalized_actions, recency_mask),
+            self._compute_o_information(acts, mask),
             jnp.array(0.0, dtype=jnp.float32)
-        )
+        ))(normalized_actions, jnp.broadcast_to(recency_mask, normalized_actions.shape[:2]))
 
-        o_info_norm = (o_info_raw - self.min_o_info) / (self.max_o_info - self.min_o_info)
+        o_info_norm = (o_info_values - self.min_o_info) / (self.max_o_info - self.min_o_info)
         o_info_norm = jnp.clip(o_info_norm, 0.0, 1.0)
 
         state.info["action_sequence"] = action_sequence
         state.info["action_sequence_raw"] = action_sequence_raw
-        state.info["lz76_complexity"] = normalized_complexity
+        state.info["lz76_complexity"] = normalized_complexities
         state.info["o_info_value"] = o_info_norm
         
-        state.info["state_descriptor"] = jnp.array([
-            jnp.maximum(normalized_complexity, 0.01),
+        state_descriptor = jnp.stack([
+            jnp.maximum(normalized_complexities, 0.01),
             jnp.maximum(o_info_norm, 0.01)
-        ])
+        ], axis=1)
+        
+        state.info["state_descriptor"] = state_descriptor.reshape(batch_size, 2)
         
         return state
     
@@ -277,7 +295,8 @@ class LZ76Wrapper(Wrapper):
         cov_matrix = jnp.cov(masked_actions.T)
         cov_matrix = cov_matrix + jnp.eye(masked_actions.shape[1]) * 1e-6
 
-        o_info = o_inf_jax(cov_matrix, 1)
+        num_vars = cov_matrix.shape[0]
+        o_info = o_inf_jax(cov_matrix, num_vars)
 
         o_info = jnp.where(jnp.isnan(o_info), 0.0, o_info)
         o_info = jnp.where(jnp.isinf(o_info), 0.0, o_info)
