@@ -124,6 +124,58 @@ class OffsetRewardWrapper(Wrapper):
         state = self.env.step(state, action)
         return state.replace(reward=state.reward + self._offset)
 
+def entropy_jax(cov, dim):
+    """
+    Calcula la entropía de una distribución normal multivariada con JAX.
+    """
+    det = jnp.linalg.det(cov)
+    det = jnp.where(det < 1e-10, 1e-10, det)
+    return 0.5 * dim * (1.0 + jnp.log(2 * jnp.pi)) + 0.5 * jnp.log(det)
+
+def get_cov_minus_i_jax(cov, i):
+    """
+    Obtiene la matriz de covarianza excluyendo la variable en el índice i usando JAX.
+    Usa una implementación compatible con JIT y trazado.
+    """
+    n = cov.shape[0]
+    def true_fn(j):
+        return j
+    def false_fn(j):
+        return j + 1
+    indices = jax.vmap(lambda j: jax.lax.cond(j < i, true_fn, false_fn, j))(jnp.arange(n - 1))
+    gathered = jax.vmap(lambda idx1: jax.vmap(lambda idx2: cov[idx1, idx2])(indices))(indices)
+    return gathered
+
+def tc_jax(cov, dim):
+    """
+    Calcula la correlación total (TC) usando JAX.
+    """
+    nb_var = cov.shape[0]
+    marginal_entropies = jax.vmap(lambda i: entropy_jax(jnp.array([[cov[i, i]]], dtype=jnp.float32), dim))(
+        jnp.arange(nb_var)
+    )
+    sum_marginal_entropies = jnp.sum(marginal_entropies)
+    joint_entropy = entropy_jax(cov, dim)
+    return sum_marginal_entropies - joint_entropy
+
+def dtc_jax(cov, dim):
+    """
+    Calcula la correlación total dual (DTC) usando JAX.
+    """
+    nb_var = cov.shape[0]
+    tc_all = tc_jax(cov, dim)
+    tc_minus_i = jax.vmap(lambda i: tc_jax(get_cov_minus_i_jax(cov, i), dim))(
+        jnp.arange(nb_var)
+    )
+    tc_minus_i_sum = jnp.sum(tc_minus_i)
+    return (nb_var - 1) * tc_all - tc_minus_i_sum
+
+def o_inf_jax(cov, dim):
+    """
+    Calcula la O-información usando JAX.
+    """
+    return tc_jax(cov, dim) - dtc_jax(cov, dim)
+
 class LZ76Wrapper(Wrapper):
     """Wraps gym environments to add both Lempel-Ziv complexity and O-Information of the actions taken."""
 
@@ -225,15 +277,7 @@ class LZ76Wrapper(Wrapper):
         cov_matrix = jnp.cov(masked_actions.T)
         cov_matrix = cov_matrix + jnp.eye(masked_actions.shape[1]) * 1e-6
 
-        joint_entropy = 0.5 * jnp.log(jnp.linalg.det(cov_matrix))
-
-        individual_entropies = jnp.array([
-            0.5 * jnp.log(jnp.var(masked_actions[:, i]) + 1e-6)
-            for i in range(masked_actions.shape[1])
-        ])
-        sum_individual_entropies = jnp.sum(individual_entropies)
-
-        o_info = joint_entropy - sum_individual_entropies
+        o_info = o_inf_jax(cov_matrix, 1)
 
         o_info = jnp.where(jnp.isnan(o_info), 0.0, o_info)
         o_info = jnp.where(jnp.isinf(o_info), 0.0, o_info)
