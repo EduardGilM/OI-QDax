@@ -24,7 +24,7 @@ from qdax.environments.locomotion_wrappers import (
     XYPositionWrapper,
 )
 from qdax.environments.pointmaze import PointMaze
-from qdax.environments.wrappers import CompletedEvalWrapper, LZ76Wrapper, LazyLZ76Wrapper
+from qdax.environments.wrappers import CompletedEvalWrapper, LZ76Wrapper
 
 # experimentally determinated offset (except for antmaze)
 # should be sufficient to have only positive rewards but no guarantee
@@ -144,7 +144,7 @@ _qdax_custom_envs = {
     },
     "halfcheetah_oi": {
         "env": "halfcheetah",
-        "wrappers": [LazyLZ76Wrapper],
+        "wrappers": [LZ76Wrapper],
         "kwargs": [{}],
     },
     "hopper_oi": {
