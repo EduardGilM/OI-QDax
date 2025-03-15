@@ -15,7 +15,10 @@ from qdax.core.map_elites import MAPElites
 from qdax.core.neuroevolution.buffers.buffer import QDTransition
 from qdax.core.neuroevolution.networks.networks import MLP
 from qdax.custom_types import EnvState, Params, RNGKey
-from qdax.tasks.brax_envs import scoring_function_brax_envs
+from qdax.tasks.brax_envs import (
+    make_policy_network_play_step_fn_brax,
+    scoring_function_brax_envs as scoring_function,
+)
 from qdax.utils.metrics import default_qd_metrics
 from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map_elites_results
 
@@ -34,13 +37,13 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 
 def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
     """Run MAP-Elites test with visualization."""
-    episode_length = 1
+    episode_length = 100
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
     num_centroids = 1024
-    min_bd = 0  # Un límite inferior para cada dimensión
-    max_bd = 1  # Un límite superior para cada dimensión
+    min_bd = -1200
+    max_bd = 1200
 
     # Create environment with wrapper parameters
     env = environments.create(
@@ -48,9 +51,7 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         episode_length=episode_length,
         fixed_init_state=True,
         qdax_wrappers_kwargs=[{
-            "max_sequence_length": 100,
-            "lz76_window": 50,
-            "oi_window": 20
+            "episode_length": episode_length
         }]
     )
 
@@ -73,46 +74,18 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
     reset_fn = jax.jit(jax.vmap(env.reset))
     init_states = reset_fn(keys)
 
-    def play_step_fn(
-        env_state: EnvState,
-        policy_params: Params,
-        random_key: RNGKey,
-    ) -> Tuple[EnvState, Params, RNGKey, QDTransition]:
-        """Play an environment step and return the updated state and the transition."""
-        actions = policy_network.apply(policy_params, env_state.obs)
-        state_desc = env_state.info["state_descriptor"]
-        next_state = env.step(env_state, actions)
+    # Usar la función de play_step predefinida de QDax
+    play_step_fn = make_policy_network_play_step_fn_brax(
+        policy_network=policy_network,
+        env=env,
+    )
 
-        transition = QDTransition(
-            obs=env_state.obs,
-            next_obs=next_state.obs,
-            rewards=next_state.reward,
-            dones=next_state.done,
-            actions=actions,
-            truncations=next_state.info["truncation"],
-            state_desc=state_desc,
-            next_state_desc=next_state.info["state_descriptor"],
-        )
+    # Obtener el extractor de descriptores de comportamiento para este entorno
+    bd_extraction_fn = environments.behavior_descriptor_extractor[env_name]
 
-        return next_state, policy_params, random_key, transition
-
-    def bd_extraction_fn(transitions, mask):
-        # Obtener el último descriptor de estado válido
-        last_valid_index = jnp.sum(1.0 - mask, axis=1) - 1
-        last_valid_index = jnp.clip(last_valid_index, 0, transitions.next_state_desc.shape[1] - 1)
-        batch_indices = jnp.arange(transitions.next_state_desc.shape[0])
-        
-        # Extraer los descriptores finales y asegurar la forma correcta
-        final_descriptors = transitions.next_state_desc[batch_indices, last_valid_index.astype(jnp.int32)]
-        
-        # Asegurar que la forma sea (batch_size, 2)
-        if len(final_descriptors.shape) > 2:
-            final_descriptors = final_descriptors.reshape(final_descriptors.shape[0], -1)
-            
-        return final_descriptors
-
+    # Configurar la función de puntuación con el extractor de descriptores
     scoring_fn = functools.partial(
-        scoring_function_brax_envs,
+        scoring_function,
         init_states=init_states,
         episode_length=episode_length,
         play_step_fn=play_step_fn,
@@ -130,6 +103,7 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         metrics_function=metrics_fn,
     )
 
+    # Calcular centroides para el espacio de descriptores
     centroids, random_key = compute_cvt_centroids(
         num_descriptors=env.behavior_descriptor_length,
         num_init_cvt_samples=num_init_cvt_samples,
@@ -139,10 +113,12 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         random_key=random_key,
     )
 
+    # Inicializar el repertorio
     repertoire, emitter_state, random_key = map_elites.init(
         init_variables, centroids, random_key
     )
 
+    # Ejecutar MAP-Elites durante el número especificado de iteraciones
     (
         repertoire,
         emitter_state,
@@ -156,6 +132,7 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
 
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
     
+    # Visualizar resultados
     fig1, axes = plot_oi_map_elites_results(
         env_steps=env_steps,
         metrics=metrics,
@@ -190,5 +167,6 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 
 if __name__ == "__main__":
-    run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=10)
+    # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
+    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=10)
     plt.show() 

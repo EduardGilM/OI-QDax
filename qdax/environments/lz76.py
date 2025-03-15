@@ -77,13 +77,19 @@ def action_to_binary(action: jnp.ndarray) -> jnp.ndarray:
     binary_rep_flat = binary_rep.reshape(-1)
     return binary_rep_flat
 
-def action_to_binary_padded(action: jp.ndarray, max_action_binary_length: int) -> jnp.ndarray:
-    """Converts actions into a fixed-size binary representation."""
-    action_binary = action_to_binary(action)
-    padded_binary = jnp.zeros((max_action_binary_length,), dtype=action_binary.dtype)
-    action_len = action_binary.shape[0]
-    padded_binary = padded_binary.at[:action_len].set(action_binary)
-    return padded_binary, action_len
+def action_to_binary_padded(action: jp.ndarray) -> jnp.ndarray:
+    """Convierte acciones en una representación binaria de longitud fija.
+    
+    Args:
+        action: Array de acciones a convertir
+        max_length: Longitud máxima de la representación binaria
+        
+    Returns:
+        Tupla de (representación binaria con padding, longitud real)
+    """
+    action = action.flatten()
+    
+    return action_to_binary(action)
 
 def LZ76_jax(ss: jnp.ndarray) -> jnp.int32:
     """JAX-compatible implementation of the LZ76 algorithm."""

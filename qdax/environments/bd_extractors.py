@@ -45,16 +45,7 @@ def get_feet_contact_proportion(data: QDTransition, mask: jnp.ndarray) -> Descri
 
 def get_lz76_complexity(data: QDTransition, mask: jnp.ndarray) -> Descriptor:
     """Calcula la complejidad de Lempel-Ziv y la O-Information de las acciones tomadas."""
-    # Obtener los descriptores del estado del entorno
-    descriptors = data.state_desc
-    
-    # Reshape descriptors to have shape (batch_size, 2)
-    descriptors = descriptors.reshape(-1, 2)
-    
-    # Asegurar que los descriptores no son cero
-    descriptors = jnp.maximum(descriptors, 0.01)
-    
-    return descriptors
+    return data.state_desc[:, len(data.state_desc) - 1]
 
 
 class AuroraExtraInfo(flax.struct.PyTreeNode):
