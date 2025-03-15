@@ -50,9 +50,8 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         qdax_wrappers_kwargs=[{
             "max_sequence_length": 100,
             "lz76_window": 50,
-            "oi_window": 20,
-            "compute_metrics": True
-        }] if env_name.endswith("_oi") else None
+            "oi_window": 20
+        }]
     )
 
     random_key = jax.random.PRNGKey(seed)
@@ -193,5 +192,5 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 
 if __name__ == "__main__":
-    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=100)
+    run_map_elites_test("halfcheetah_oi", batch_size=100, num_iterations=100)
     plt.show() 

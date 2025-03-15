@@ -479,11 +479,7 @@ def create_default_brax_task_components(
             their fitnesses and descriptors.
         random_key: The updated random key.
     """
-    env = environments.create(
-        env_name, 
-        episode_length=episode_length,
-        qdax_wrappers_kwargs=[{"compute_metrics": False}] if env_name.endswith("_oi") else None
-    )
+    env = environments.create(env_name, episode_length=episode_length)
 
     # Init policy network
     policy_layer_sizes = mlp_policy_hidden_layer_sizes + (env.action_size,)
