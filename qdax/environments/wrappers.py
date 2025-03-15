@@ -192,9 +192,6 @@ class LZ76Wrapper(Wrapper):
         self.min_o_info = -self.env.action_size / 2.0
         self.max_o_info = self.env.action_size / 2.0
         
-        # Flag para controlar si debemos calcular métricas
-        self.compute_metrics = kwargs.get('compute_metrics', False)
-        
     @property
     def action_size(self):
         return self.env.action_size
@@ -218,7 +215,6 @@ class LZ76Wrapper(Wrapper):
         state.info["action_sequence_raw"] = action_sequence_raw
         state.info["lz76_complexity"] = jnp.zeros(batch_size, dtype=jnp.float32)
         state.info["o_info_value"] = jnp.zeros(batch_size, dtype=jnp.float32)
-        state.info["metrics_computed"] = jnp.zeros(batch_size, dtype=jnp.bool_)
         
         state.info["state_descriptor"] = jnp.ones((batch_size, 2), dtype=jnp.float32) * 0.01
         return state
@@ -251,47 +247,42 @@ class LZ76Wrapper(Wrapper):
             action,
             jnp.full(action.shape[0], current_step)
         )
+        
+        valid_sequence_length = jnp.minimum(current_step + 1, self.max_sequence_length)
+        sequence_mask = jnp.arange(self.max_sequence_length) < valid_sequence_length
+        
+        complexities = jax.vmap(lambda seq: LZ76_jax(seq.reshape(-1)))(
+            action_sequence * sequence_mask[None, :, None]
+        )
+        normalized_complexities = jnp.clip(complexities / self.max_lz76, 0.0, 1.0)
 
-        # Solo calculamos métricas si es necesario
-        if self.compute_metrics:
-            valid_sequence_length = jnp.minimum(current_step + 1, self.max_sequence_length)
-            sequence_mask = jnp.arange(self.max_sequence_length) < valid_sequence_length
-            
-            complexities = jax.vmap(lambda seq: LZ76_jax(seq.reshape(-1)))(
-                action_sequence * sequence_mask[None, :, None]
-            )
-            normalized_complexities = jnp.clip(complexities / self.max_lz76, 0.0, 1.0)
+        valid_steps = jnp.minimum(current_step + 1, self.max_sequence_length)
+        recent_steps = jnp.minimum(valid_steps, self.oi_window)
+        
+        recency_mask = jnp.arange(self.max_sequence_length) >= (valid_steps - recent_steps)
+        recency_mask = recency_mask & (jnp.arange(self.max_sequence_length) < valid_steps)
+        
+        normalized_actions = (action_sequence_raw + 1.0) / 2.0
 
-            valid_steps = jnp.minimum(current_step + 1, self.max_sequence_length)
-            recent_steps = jnp.minimum(valid_steps, self.oi_window)
-            
-            recency_mask = jnp.arange(self.max_sequence_length) >= (valid_steps - recent_steps)
-            recency_mask = recency_mask & (jnp.arange(self.max_sequence_length) < valid_steps)
-            
-            normalized_actions = (action_sequence_raw + 1.0) / 2.0
+        o_info_values = jax.vmap(lambda acts, mask: jnp.where(
+            recent_steps > 1,
+            self._compute_o_information(acts, mask),
+            jnp.array(0.0, dtype=jnp.float32)
+        ))(normalized_actions, jnp.broadcast_to(recency_mask, normalized_actions.shape[:2]))
 
-            o_info_values = jax.vmap(lambda acts, mask: jnp.where(
-                recent_steps > 1,
-                self._compute_o_information(acts, mask),
-                jnp.array(0.0, dtype=jnp.float32)
-            ))(normalized_actions, jnp.broadcast_to(recency_mask, normalized_actions.shape[:2]))
-
-            o_info_norm = (o_info_values - self.min_o_info) / (self.max_o_info - self.min_o_info)
-            o_info_norm = jnp.clip(o_info_norm, 0.0, 1.0)
-
-            state_descriptor = jnp.stack([
-                jnp.maximum(normalized_complexities, 0.01),
-                jnp.maximum(o_info_norm, 0.01)
-            ], axis=1)
-        else:
-            normalized_complexities = jnp.zeros(batch_size, dtype=jnp.float32)
-            o_info_norm = jnp.zeros(batch_size, dtype=jnp.float32)
-            state_descriptor = jnp.ones((batch_size, 2), dtype=jnp.float32) * 0.01
+        o_info_norm = (o_info_values - self.min_o_info) / (self.max_o_info - self.min_o_info)
+        o_info_norm = jnp.clip(o_info_norm, 0.0, 1.0)
 
         state.info["action_sequence"] = action_sequence
         state.info["action_sequence_raw"] = action_sequence_raw
         state.info["lz76_complexity"] = normalized_complexities
         state.info["o_info_value"] = o_info_norm
+        
+        state_descriptor = jnp.stack([
+            jnp.maximum(normalized_complexities, 0.01),
+            jnp.maximum(o_info_norm, 0.01)
+        ], axis=1)
+        
         state.info["state_descriptor"] = state_descriptor.reshape(batch_size, 2)
         
         return state
