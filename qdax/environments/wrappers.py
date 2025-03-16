@@ -193,8 +193,8 @@ class LZ76Wrapper(Wrapper):
         obs_dim = state.obs.shape[0]
         state.info["obs_sequence"] = jnp.zeros((obs_dim, self.episode_length), dtype=jnp.float32)
         state.info["current_step"] = 0
-        state.info["lz76_complexity"] = 0
-        state.info["o_info_value"] = 0
+        state.info["lz76_complexity"] = jnp.float32(0)
+        state.info["o_info_value"] = jnp.float32(0)
         state.info["state_descriptor"] = jnp.zeros(2, dtype=jnp.float32)
         return state
 
@@ -207,8 +207,8 @@ class LZ76Wrapper(Wrapper):
         
         is_final_step = current_step == (self.episode_length - 1)
 
-        complexities = state.info["lz76_complexity"]
-        o_info_values = state.info["o_info_value"]
+        complexities = jnp.float32(state.info["lz76_complexity"])
+        o_info_values = jnp.float32(state.info["o_info_value"])
         state_descriptor = state.info["state_descriptor"]
         
         def compute_final_metrics(obs_seq):
