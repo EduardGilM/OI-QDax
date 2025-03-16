@@ -202,30 +202,38 @@ class LZ76Wrapper(Wrapper):
         state = self.env.step(state, action)
         
         obs = state.obs
-            
         current_step = state.info["current_step"]
         obs_sequence = state.info["obs_sequence"].at[:, current_step].set(obs)
         
-        def compute_metrics():
-            obs_binary_batch = action_to_binary_padded(obs_sequence)
-            complexities = jnp.float32(LZ76_jax(obs_binary_batch))
-            o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
-            return (complexities, o_info_values, jnp.array([complexities, o_info_values], dtype=jnp.float32))
+        is_final_step = current_step == (self.episode_length - 1)
+
+        complexities = state.info["lz76_complexity"]
+        o_info_values = state.info["o_info_value"]
+        state_descriptor = state.info["state_descriptor"]
         
-        def zero_metrics():
-            return (jnp.float32(0), jnp.float32(0), jnp.zeros(2, dtype=jnp.float32))
+        def compute_final_metrics(obs_seq):
+            obs_binary = action_to_binary_padded(obs_seq)
+            new_complexity = jnp.float32(LZ76_jax(obs_binary))
+            new_o_info = jnp.float32(self._compute_o_information(obs_seq))
+            return new_complexity, new_o_info, jnp.array([new_complexity, new_o_info])
+        
+        def keep_previous(_):
+            return complexities, o_info_values, state_descriptor
         
         complexities, o_info_values, state_descriptor = jax.lax.cond(
-            current_step == self.episode_length,
-            compute_metrics,
-            zero_metrics
+            is_final_step,
+            compute_final_metrics,
+            keep_previous,
+            obs_sequence
         )
 
-        state.info["obs_sequence"] = obs_sequence
-        state.info["current_step"] = current_step + 1
-        state.info["lz76_complexity"] = complexities
-        state.info["o_info_value"] = o_info_values
-        state.info["state_descriptor"] = state_descriptor
+        state.info.update({
+            "obs_sequence": obs_sequence,
+            "current_step": current_step + 1,
+            "lz76_complexity": complexities,
+            "o_info_value": o_info_values,
+            "state_descriptor": state_descriptor
+        })
 
         return state
     
