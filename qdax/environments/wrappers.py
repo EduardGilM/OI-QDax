@@ -192,7 +192,7 @@ class LZ76Wrapper(Wrapper):
         
         obs_dim = state.obs.shape[0]
         state.info["obs_sequence"] = jnp.zeros((obs_dim, self.episode_length), dtype=jnp.float32)
-        state.info["current_step"] = jnp.array(0, dtype=jnp.int32)
+        state.info["current_step"] = 0
         state.info["lz76_complexity"] = 0
         state.info["o_info_value"] = 0
         state.info["state_descriptor"] = jnp.zeros(2, dtype=jnp.float32)
