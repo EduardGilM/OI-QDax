@@ -205,8 +205,7 @@ class LZ76Wrapper(Wrapper):
         current_step = state.info["current_step"]
         obs_sequence = state.info["obs_sequence"].at[:, current_step].set(obs)
         
-        is_final_step = current_step == (self.episode_length - 1)
-
+        is_final_step = current_step == (self.episode_length - 2)
         complexities = jnp.float32(state.info["lz76_complexity"])
         o_info_values = jnp.float32(state.info["o_info_value"])
         state_descriptor = state.info["state_descriptor"]
@@ -227,6 +226,16 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
+        #obs_binary = action_to_binary_padded(obs_sequence)
+        #complexities = jnp.float32(LZ76_jax(obs_binary))
+        #o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
+        #state_descriptor = jnp.array([complexities, o_info_values])
+
+        #jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Complexity: {x}", x=complexities)
+        #jax.debug.print("O-Information: {x}", x=o_info_values)
+        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
+
         state.info.update({
             "obs_sequence": obs_sequence,
             "current_step": current_step + 1,
@@ -234,6 +243,8 @@ class LZ76Wrapper(Wrapper):
             "o_info_value": o_info_values,
             "state_descriptor": state_descriptor
         })
+
+        #jax.debug.print("State info: {x}", x=state.info["state_descriptor"])
 
         return state
     

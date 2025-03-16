@@ -21,6 +21,7 @@ from qdax.tasks.brax_envs import (
 )
 from qdax.utils.metrics import default_qd_metrics
 from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map_elites_results
+import time
 
 
 def get_mixing_emitter(batch_size: int) -> MixingEmitter:
@@ -117,7 +118,12 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
     repertoire, emitter_state, random_key = map_elites.init(
         init_variables, centroids, random_key
     )
+    
+    print("Running MAP-Elites...")
 
+    # Add timing to measure MAP-Elites execution
+    start_time = time.time()
+    
     # Ejecutar MAP-Elites durante el número especificado de iteraciones
     (
         repertoire,
@@ -129,6 +135,7 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         (),
         length=num_iterations,
     )
+
 
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
     
@@ -168,5 +175,5 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=10)
+    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=100)
     plt.show() 
