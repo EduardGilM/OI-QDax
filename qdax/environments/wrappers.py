@@ -207,14 +207,19 @@ class LZ76Wrapper(Wrapper):
         current_step = state.info["current_step"]
         obs_sequence = state.info["obs_sequence"].at[:, current_step].set(obs)
         
-        if current_step == self.episode_length:
-            complexities = jnp.float32(LZ76_jax(obs_binary_batch))
-            o_info_values = self._compute_o_information(obs_sequence)
-            state_descriptor = jnp.array([complexities, o_info_values], dtype=jnp.float32)
-        else:
-            complexities = 0
-            o_info_values = 0
-            state_descriptor = jnp.zeros(2, dtype=jnp.float32)
+        def compute_metrics():
+            return (jnp.float32(LZ76_jax(obs_binary_batch)),
+                   self._compute_o_information(obs_sequence),
+                   jnp.array([complexities, o_info_values], dtype=jnp.float32))
+        
+        def zero_metrics():
+            return (jnp.float32(0), jnp.float32(0), jnp.zeros(2, dtype=jnp.float32))
+        
+        complexities, o_info_values, state_descriptor = jax.lax.cond(
+            current_step == self.episode_length,
+            compute_metrics,
+            zero_metrics
+        )
 
         state.info["obs_sequence"] = obs_sequence
         state.info["current_step"] = current_step + 1
