@@ -208,8 +208,8 @@ class LZ76Wrapper(Wrapper):
         
         def compute_metrics():
             obs_binary_batch = action_to_binary_padded(obs_sequence)
-            complexities = LZ76_jax(obs_binary_batch)
-            o_info_values = self._compute_o_information(obs_sequence)
+            complexities = jnp.float32(LZ76_jax(obs_binary_batch))
+            o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
             return (complexities, o_info_values, jnp.array([complexities, o_info_values], dtype=jnp.float32))
         
         def zero_metrics():
