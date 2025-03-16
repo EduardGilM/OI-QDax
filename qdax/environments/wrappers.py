@@ -208,9 +208,9 @@ class LZ76Wrapper(Wrapper):
         obs_sequence = state.info["obs_sequence"].at[:, current_step].set(obs)
         
         def compute_metrics():
-            return (jnp.float32(LZ76_jax(obs_binary_batch)),
-                   self._compute_o_information(obs_sequence),
-                   jnp.array([complexities, o_info_values], dtype=jnp.float32))
+            complexities = LZ76(obs_binary_batch)
+            o_info_values = self._compute_o_information(obs_sequence)
+            return (complexities, o_info_values, jnp.array([complexities, o_info_values], dtype=jnp.float32))
         
         def zero_metrics():
             return (jnp.float32(0), jnp.float32(0), jnp.zeros(2, dtype=jnp.float32))
