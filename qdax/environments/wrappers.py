@@ -210,26 +210,26 @@ class LZ76Wrapper(Wrapper):
         o_info_values = jnp.float32(state.info["o_info_value"])
         state_descriptor = state.info["state_descriptor"]
         
-        #def compute_final_metrics(obs_seq):
-        #    obs_binary = action_to_binary_padded(obs_seq)
-        #    new_complexity = jnp.float32(LZ76_jax(obs_binary))
-        #    new_o_info = jnp.float32(self._compute_o_information(obs_seq))
-        #    return new_complexity, new_o_info, jnp.array([new_complexity, new_o_info])
-        #
-        #def keep_previous(_):
-        #    return complexities, o_info_values, state_descriptor
-        #
-        #complexities, o_info_values, state_descriptor = jax.lax.cond(
-        #    is_final_step,
-        #    compute_final_metrics,
-        #    keep_previous,
-        #    obs_sequence
-        #)
+        def compute_final_metrics(obs_seq):
+            obs_binary = action_to_binary_padded(obs_seq)
+            new_complexity = jnp.float32(LZ76_jax(obs_binary))
+            new_o_info = jnp.float32(self._compute_o_information(obs_seq))
+            return new_complexity, new_o_info, jnp.array([new_complexity, new_o_info])
+        
+        def keep_previous(_):
+            return complexities, o_info_values, state_descriptor
+        
+        complexities, o_info_values, state_descriptor = jax.lax.cond(
+            is_final_step,
+            compute_final_metrics,
+            keep_previous,
+            obs_sequence
+        )
 
-        obs_binary = action_to_binary_padded(obs_sequence)
-        complexities = jnp.float32(LZ76_jax(obs_binary))
-        o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
-        state_descriptor = jnp.array([complexities, o_info_values])
+        #obs_binary = action_to_binary_padded(obs_sequence)
+        #complexities = jnp.float32(LZ76_jax(obs_binary))
+        #o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
+        #state_descriptor = jnp.array([complexities, o_info_values])
 
         #jax.debug.print("Current step: {x}", x=current_step)
         #jax.debug.print("Complexity: {x}", x=complexities)
