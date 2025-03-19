@@ -214,6 +214,7 @@ class LZ76Wrapper(Wrapper):
             obs_binary = action_to_binary_padded(obs_seq)
             new_complexity = jnp.float32(LZ76_jax(obs_binary))
             new_o_info = jnp.float32(self._compute_o_information(obs_seq))
+            #jax.debug.print("State descriptor: {x}", x=jnp.array([new_complexity, new_o_info]))
             return new_complexity, new_o_info, jnp.array([new_complexity, new_o_info])
         
         def keep_previous(_):

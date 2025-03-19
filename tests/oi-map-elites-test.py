@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from qdax import environments
 from qdax.core.containers.mapelites_repertoire import compute_cvt_centroids
-from qdax.core.emitters.mutation_operators import isoline_variation
+from qdax.core.emitters.mutation_operators import isoline_variation, polynomial_mutation
 from qdax.core.emitters.standard_emitters import MixingEmitter
 from qdax.core.map_elites import MAPElites
 from qdax.core.neuroevolution.buffers.buffer import QDTransition
@@ -26,9 +26,10 @@ import time
 
 def get_mixing_emitter(batch_size: int) -> MixingEmitter:
     """Create a mixing emitter with a given batch size."""
-    variation_fn = functools.partial(isoline_variation, iso_sigma=0.05, line_sigma=0.1)
+    variation_fn = functools.partial(isoline_variation, iso_sigma=0.001, line_sigma=1.0)
+    mutation_fn = functools.partial(polynomial_mutation, eta=128.0, minval=-1200.0, maxval=1200.0)
     mixing_emitter = MixingEmitter(
-        mutation_fn=lambda x, y: (x, y),
+        mutation_fn=mutation_fn,
         variation_fn=variation_fn,
         variation_percentage=1.0,
         batch_size=batch_size,
@@ -38,11 +39,11 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 
 def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
     """Run MAP-Elites test with visualization."""
-    episode_length = 100
+    episode_length = 30
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
-    num_centroids = 1024
+    num_centroids = 5000
     min_bd = -1200
     max_bd = 1200
 
@@ -175,5 +176,5 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    run_map_elites_test("halfcheetah_oi", batch_size=10, num_iterations=100)
+    run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=10)
     plt.show() 
