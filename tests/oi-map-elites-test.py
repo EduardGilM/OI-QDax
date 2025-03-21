@@ -39,13 +39,13 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 
 def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
     """Run MAP-Elites test with visualization."""
-    episode_length = 30
+    episode_length = 20
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
     num_centroids = 5000
-    min_bd = -1200
-    max_bd = 1200
+    min_bd = -200
+    max_bd = 200
 
     # Create environment with wrapper parameters
     env = environments.create(
@@ -176,5 +176,5 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=10)
+    run_map_elites_test("halfcheetah_oi", batch_size=50, num_iterations=400)
     plt.show() 
