@@ -1,6 +1,7 @@
 import math
 from typing import Dict, Optional, Tuple
 import jax.lax as lax
+from jax.scipy.special import digamma, gamma
 
 import flax.struct
 import jax
@@ -126,72 +127,36 @@ class OffsetRewardWrapper(Wrapper):
     def step(self, state: State, action: jp.ndarray) -> State:
         state = self.env.step(state, action)
         return state.replace(reward=state.reward + self._offset)
-    
-def euclidean_distances(X, Y=None):
-    """Compute pairwise Euclidean distances between points in X and Y using JAX.
-    
-    Args:
-        X: array of shape (n_samples_X, n_features)
-        Y: array of shape (n_samples_Y, n_features), optional
-    
-    Returns:
-        distances: array of shape (n_samples_X, n_samples_Y)
-    """
-    if Y is None:
-        Y = X
-    
-    # Compute squared Euclidean distances
-    XX = jnp.sum(X * X, axis=1)[:, jnp.newaxis]
-    YY = jnp.sum(Y * Y, axis=1)[jnp.newaxis, :]
-    distances = XX + YY - 2 * jnp.dot(X, Y.T)
-    
-    # Ensure no negative values due to numerical errors
-    distances = jnp.maximum(distances, 0.0)
-    
-    return jnp.sqrt(distances)
 
 def k_nearest_distances(X, k=1):
     """Find k-nearest neighbors distances using JAX.
     
     Args:
         X: array of shape (n_samples, n_features)
-        k: number of neighbors (including self)
+        k: number of neighbors (excluding self)
     
     Returns:
         knn_distances: array of shape (n_samples, k)
     """
-    # Compute pairwise distances
-    dist_matrix = euclidean_distances(X)
-    
-    # Replace diagonal (self-distance) with infinity
-    n_samples = X.shape[0]
-    dist_matrix = dist_matrix.at[jnp.arange(n_samples), jnp.arange(n_samples)].set(jnp.inf)
-    
-    # Sort distances along rows and take k smallest values
-    return jnp.sort(dist_matrix, axis=1)[:, :k]
+    return jnp.argsort(jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1), axis=-1)[:, :k]
 
 def k_l_entropy(data, k=1):
     """Calculate entropy estimate using k-nearest neighbors with pure JAX.
     
     Args:
         data: array of shape (n_samples, n_dimensions)
-        k: number of neighbors
+        k: number of neighbors (excluding self)
     
     Returns:
         entropy: float, entropy estimate
     """
     n_samples, n_dimensions = data.shape
-    
-    # Volume of unit hypersphere in n_dimensions
-    vol_hypersphere = jnp.pi**(n_dimensions/2) / math.gamma((n_dimensions/2) + 1)
-    
-    # Get distances to k nearest neighbors (excluding self)
+
+    vol_hypersphere = jnp.pi**(n_dimensions/2) / gamma(n_dimensions/2 + 1)
+
     distances = k_nearest_distances(data, k)
-    
-    # Get the k-th nearest neighbor distance for each point
     epsilon = distances[:, k-1]
-    
-    # Calculate entropy using the KL estimator formula
+
     entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
                jnp.log(vol_hypersphere) + 0.577216 + jnp.log(n_samples-1))
     
@@ -210,14 +175,11 @@ def extract_single_column(matrix, col_idx):
     rows, cols = matrix.shape
     
     def get_element(row_idx):
-        # Extract the element at row_idx, col_idx
         element = lax.dynamic_slice(matrix[row_idx], (col_idx,), (1,))
-        return element[0]  # Remove extra dimension
-    
-    # Apply to all rows
+        return element[0]
+
     column_data = jax.vmap(get_element)(jnp.arange(rows))
-    
-    # Reshape to column vector [rows, 1]
+
     return column_data.reshape(-1, 1)
 
 def exclude_column(matrix, col_idx):
@@ -232,29 +194,22 @@ def exclude_column(matrix, col_idx):
     """
     rows, cols = matrix.shape
     
-    # Create a mask for all columns except the one to exclude
     col_indices = jnp.arange(cols)
     mask = jnp.not_equal(col_indices, col_idx)
     
-    # Create result matrix filled with zeros
     result = jnp.zeros((rows, cols-1), dtype=matrix.dtype)
-    
-    # Copy columns one by one, skipping the excluded column
+
     def body_fun(i, result_matrix):
-        # Skip the excluded column
-        src_col = i + (i >= col_idx)  # Source column index in the original matrix
-        # Only copy if it's not the excluded column
+
+        src_col = i + (i >= col_idx)
         valid_col = i < (cols - 1)
-        
-        # Get the column data
+
         col_data = extract_single_column(matrix, src_col)
         
-        # Update the result matrix conditionally
         return result_matrix.at[:, i].set(
             jnp.where(valid_col, col_data.flatten(), result_matrix[:, i])
         )
-    
-    # Apply the loop
+
     result = jax.lax.fori_loop(0, cols-1, body_fun, result)
     
     return result
@@ -295,24 +250,10 @@ class LZ76Wrapper(Wrapper):
         
         def compute_final_metrics(obs_seq):
             pca_state = pcax.fit(obs_seq, n_components=obs_seq.shape[0])
-            explained_variance = pca_state.explained_variance
-
-            total_variance = jnp.sum(explained_variance)
-            explained_variance_ratio = explained_variance / total_variance
-            cumulative = jnp.cumsum(explained_variance_ratio)
-
-            n_components = jnp.sum(cumulative < 0.85) + 1
+            n_components = 4
 
             transformed_obs = pcax.transform(pca_state, obs_seq)
-
-            rows, cols = transformed_obs.shape
-
-            col_indices = jnp.arange(cols)
-            mask = jnp.less(col_indices, n_components)
-
-            mask_expanded = mask.reshape(1, -1)
-
-            reduced_obs = transformed_obs * mask_expanded
+            reduced_obs = transformed_obs[:, :n_components]
             
             # Calculate complexity and O-information
             obs_binary = action_to_binary_padded(reduced_obs)
@@ -355,35 +296,24 @@ class LZ76Wrapper(Wrapper):
     
     def _compute_o_information(self, obs_sequence):
         """Compute O-Information with JAX operations."""
-        # Transpose to get (samples, features) format
         obs_t = jnp.transpose(obs_sequence)
         n_samples, n_vars = obs_t.shape
         k = 3
-
-        # Calculate joint entropy using all variables
         h_joint = k_l_entropy(obs_t, k)
         
-        # Calculate sum of conditional terms in a JAX-friendly way
         def body_fun(j, acc):
-            # Extract single column j using dynamic slicing
             column_j = extract_single_column(obs_t, j)
-            
-            # Calculate entropy of column j
+
             h_xj = k_l_entropy(column_j, 1)
-            
-            # Create data excluding column j
+
             data_excl_j = exclude_column(obs_t, j)
-            
-            # Calculate entropy excluding column j
+
             h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
             
-            # Update accumulator
             return acc + (h_xj - h_excl_j)
         
-        # Apply loop over all variables
         sum_term = jax.lax.fori_loop(0, n_vars, body_fun, 0.0)
-        
-        # Calculate final O-Information value
+
         o_info = (n_vars - 2) * h_joint + sum_term
         
         return jnp.float32(o_info)

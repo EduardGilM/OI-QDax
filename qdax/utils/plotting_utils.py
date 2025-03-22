@@ -170,8 +170,8 @@ def get_voronoi_finite_polygons_2d(
 def plot_2d_map_elites_repertoire(
     repertoire: MapElitesRepertoire,
     ax: Optional[plt.Axes] = None,
-    min_bd: float = 0.0,
-    max_bd: float = 1.0,
+    min_bd: Union[float, Tuple[float, float], List[float], np.ndarray] = 0.0,
+    max_bd: Union[float, Tuple[float, float], List[float], np.ndarray] = 1.0,
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
     fitness_measure: str = "fitness",
@@ -188,15 +188,15 @@ def plot_2d_map_elites_repertoire(
     Args:
         repertoire: The repertoire to visualize
         ax: Optional matplotlib axes
-        min_bd: Minimum behavior descriptor value
-        max_bd: Maximum behavior descriptor value
+        min_bd: Minimum behavior descriptor values [min_x, min_y] or single float for both
+        max_bd: Maximum behavior descriptor values [max_x, max_y] or single float for both
         vmin: Minimum fitness for colormap
         vmax: Maximum fitness for colormap
         fitness_measure: Measure to use for color ("fitness" or "density")
         cmap: Colormap name
         title: Plot title
-        xlim: Optional limits for x-axis
-        ylim: Optional limits for y-axis
+        xlim: Optional limits for x-axis (overrides min_bd/max_bd for x)
+        ylim: Optional limits for y-axis (overrides min_bd/max_bd for y)
         use_voronoi: Whether to use Voronoi tessellation (like the original plot function)
         show_stats: Whether to show statistics on the plot
         
@@ -234,11 +234,17 @@ def plot_2d_map_elites_repertoire(
     }
     mpl.rcParams.update(params)
     
+    # Process min_bd and max_bd to support separate X and Y axis limits
+    if isinstance(min_bd, (float, int)):
+        min_bd = [min_bd, min_bd]
+    if isinstance(max_bd, (float, int)):
+        max_bd = [max_bd, max_bd]
+    
     # Set axis limits
     if xlim is None:
-        xlim = (min_bd, max_bd)
+        xlim = (min_bd[0], max_bd[0])
     if ylim is None:
-        ylim = (min_bd, max_bd)
+        ylim = (min_bd[1], max_bd[1])
     
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
@@ -337,8 +343,8 @@ def plot_oi_map_elites_results(
     env_steps: jnp.ndarray,
     metrics: Dict[str, jnp.ndarray],
     repertoire: MapElitesRepertoire,
-    min_bd: float = 0.0,
-    max_bd: float = 1.0,
+    min_bd: Union[float, Tuple[float, float], List[float], np.ndarray] = 0.0,
+    max_bd: Union[float, Tuple[float, float], List[float], np.ndarray] = 1.0,
     figsize: Tuple[int, int] = (20, 10)
 ) -> Tuple[plt.Figure, List[plt.Axes]]:
     """
@@ -400,32 +406,3 @@ def plot_oi_map_elites_results(
     
     plt.tight_layout()
     return fig, axes
-
-
-def plot_map_elites_results(
-    env_steps: jnp.ndarray,
-    metrics: Dict[str, jnp.ndarray],
-    repertoire: Optional[MapElitesRepertoire] = None,
-    min_bd: float = 0.0,
-    max_bd: float = 1.0,
-) -> Tuple[plt.Figure, List[plt.Axes]]:
-    """
-    Compatible wrapper for the original plot_map_elites_results function.
-    
-    Args:
-        env_steps: Array of environment steps
-        metrics: Dictionary of metrics
-        repertoire: Final MAP-Elites repertoire
-        min_bd: Minimum behavior descriptor value
-        max_bd: Maximum behavior descriptor value
-        
-    Returns:
-        Figure and axes with plots
-    """
-    return plot_oi_map_elites_results(
-        env_steps=env_steps,
-        metrics=metrics,
-        repertoire=repertoire,
-        min_bd=min_bd,
-        max_bd=max_bd,
-    )

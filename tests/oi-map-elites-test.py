@@ -27,7 +27,7 @@ import time
 def get_mixing_emitter(batch_size: int) -> MixingEmitter:
     """Create a mixing emitter with a given batch size."""
     variation_fn = functools.partial(isoline_variation, iso_sigma=0.001, line_sigma=1.0)
-    mutation_fn = functools.partial(polynomial_mutation, eta=128.0, minval=-1200.0, maxval=1200.0)
+    mutation_fn = functools.partial(polynomial_mutation, eta=128.0, minval=-1.0, maxval=1.0)
     mixing_emitter = MixingEmitter(
         mutation_fn=mutation_fn,
         variation_fn=variation_fn,
@@ -39,13 +39,13 @@ def get_mixing_emitter(batch_size: int) -> MixingEmitter:
 
 def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 100) -> None:
     """Run MAP-Elites test with visualization."""
-    episode_length = 20
+    episode_length = 100
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
-    num_centroids = 5000
-    min_bd = -200
-    max_bd = 200
+    num_centroids = 1024
+    min_bd = (100, -250)
+    max_bd = (400, 250) 
 
     # Create environment with wrapper parameters
     env = environments.create(
@@ -122,9 +122,6 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
     
     print("Running MAP-Elites...")
 
-    # Add timing to measure MAP-Elites execution
-    start_time = time.time()
-    
     # Ejecutar MAP-Elites durante el número especificado de iteraciones
     (
         repertoire,
@@ -145,17 +142,18 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
         env_steps=env_steps,
         metrics=metrics,
         repertoire=repertoire,
-        min_bd=min_bd,
-        max_bd=max_bd,
+        min_bd=min_bd,  
+        max_bd=max_bd,  
     )
+    
     plt.show(block=False)
 
     fig2, ax = plt.subplots(figsize=(10, 10))
     plot_2d_map_elites_repertoire(
         repertoire=repertoire,
         ax=ax,
-        min_bd=min_bd,
-        max_bd=max_bd,
+        min_bd=min_bd,  
+        max_bd=max_bd,    
         title=f"Archive Final - {env_name} (batch_size={batch_size})"
     )
     plt.show(block=False)
@@ -176,5 +174,5 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    run_map_elites_test("halfcheetah_oi", batch_size=50, num_iterations=400)
-    plt.show() 
+    run_map_elites_test("halfcheetah_oi", batch_size=100, num_iterations=200)
+    plt.show()
