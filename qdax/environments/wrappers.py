@@ -255,12 +255,15 @@ class LZ76Wrapper(Wrapper):
             transformed_obs = pcax.transform(pca_state, obs_seq)
             reduced_obs = transformed_obs[:, :n_components]
             
-            # Calculate complexity and O-information
             obs_binary = action_to_binary_padded(reduced_obs)
-            new_complexity = jnp.float32(LZ76_jax(obs_binary))
-            new_o_info = jnp.float32(self._compute_o_information(reduced_obs))
+            raw_complexity = jnp.float32(LZ76_jax(obs_binary))
+            raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
             
-            return new_complexity, new_o_info, jnp.array([new_complexity, new_o_info])
+            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 200))))
+
+            normalized_o_info = jnp.tanh(0.0049 * raw_o_info)
+            
+            return normalized_complexity, normalized_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
         def keep_previous(_):
             return complexities, o_info_values, state_descriptor

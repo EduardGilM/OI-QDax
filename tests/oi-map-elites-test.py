@@ -44,8 +44,8 @@ def run_map_elites_test(env_name: str, batch_size: int, num_iterations: int = 10
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
     num_centroids = 1024
-    min_bd = (100, -250)
-    max_bd = (400, 250) 
+    min_bd = (0, -1)
+    max_bd = (1, 1) 
 
     # Create environment with wrapper parameters
     env = environments.create(
@@ -170,9 +170,15 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
     """Test function for pytest."""
     repertoire = run_map_elites_test(env_name, batch_size, num_iterations=10)
     assert repertoire is not None
+    repertoire_path = "./last_repertoire/"
+    os.makedirs(repertoire_path, exist_ok=True)
+    repertoire.save(path=repertoire_path)
 
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    run_map_elites_test("halfcheetah_oi", batch_size=100, num_iterations=200)
+    repertoire = run_map_elites_test("halfcheetah_oi", batch_size=100, num_iterations=1000)
+    repertoire_path = "./last_repertoire/"
+    os.makedirs(repertoire_path, exist_ok=True)
+    repertoire.save(path=repertoire_path)
     plt.show()

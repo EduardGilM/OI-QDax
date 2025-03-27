@@ -41,12 +41,12 @@ reward_offset = {
     "halfcheetah_uni": 9.231,
     "hopper_uni": 0.9,
     "walker2d_uni": 1.413,
-    "halfcheetah_oi": 9.231,  # Use the same offset as 'halfcheetah_uni' or adjust as needed
-    "hopper_oi": 0.9,         # Use the same offset as 'hopper_uni' or adjust as needed
-    "walker2d_oi": 1.413,     # Use the same offset as 'walker2d_uni' or adjust as needed
-    "ant_oi": 3.24,           # Use the same offset as 'ant_uni' or adjust as needed
-    "humanoid_oi": 0.0,       # Use the same offset as 'humanoid_uni' or adjust as needed
-    "pointmaze_oi": 2.3431,   # Use the same offset as 'pointmaze' or adjust as needed
+    "halfcheetah_oi": 0.0,
+    "hopper_oi": 0.0,        
+    "walker2d_oi": 0.0,    
+    "ant_oi": 0.0,          
+    "humanoid_oi": 0.0,      
+    "pointmaze_oi": 0.0,  
 }
 
 behavior_descriptor_extractor = {

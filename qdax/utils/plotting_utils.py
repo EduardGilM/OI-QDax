@@ -248,8 +248,8 @@ def plot_2d_map_elites_repertoire(
     
     ax.set_xlim(xlim)
     ax.set_ylim(ylim)
-    ax.set(adjustable="box", aspect="equal")
-    
+    #ax.set(adjustable="box", aspect="equal")
+    ax.set_box_aspect(1)
     # Check if any valid solutions exist
     if not jnp.any(valid_mask):
         ax.text(0.5, 0.5, "No valid solutions in repertoire", 
