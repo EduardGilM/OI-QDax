@@ -223,7 +223,11 @@ class LZ76Wrapper(Wrapper):
         
     @property
     def behavior_descriptor_length(self):
-        return 2 
+        return 2
+
+    @property
+    def state_descriptor_length(self) -> int:
+        return self.behavior_descriptor_length
 
     def reset(self, rng: jp.ndarray) -> State:
         state = self.env.reset(rng)
