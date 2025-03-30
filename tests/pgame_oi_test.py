@@ -249,7 +249,7 @@ def test_pgame_with_oi_wrapper(env_name: str) -> None:
 
 if __name__ == "__main__":
     # Run with more iterations when executed as a script
-    repertoire = run_pgame_oi_test("halfcheetah_oi", num_iterations=1)
+    repertoire = run_pgame_oi_test("halfcheetah_oi", num_iterations=1000)
     
     # Save the repertoire
     repertoire_path = "./pgame_oi_repertoire/"

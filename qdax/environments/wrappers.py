@@ -129,16 +129,9 @@ class OffsetRewardWrapper(Wrapper):
         return state.replace(reward=state.reward + self._offset)
 
 def k_nearest_distances(X, k=1):
-    """Find k-nearest neighbors distances using JAX.
-    
-    Args:
-        X: array of shape (n_samples, n_features)
-        k: number of neighbors (excluding self)
-    
-    Returns:
-        knn_distances: array of shape (n_samples, k)
-    """
-    return jnp.argsort(jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1), axis=-1)[:, :k]
+    distances = jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1)  # (n_samples, n_samples)
+    sorted_distances = jnp.sort(distances, axis=-1)[:, 1:k+1]  # Excluye distancia a sí mismo (0)
+    return sorted_distances
 
 def k_l_entropy(data, k=1):
     """Calculate entropy estimate using k-nearest neighbors with pure JAX.
@@ -228,12 +221,16 @@ class LZ76Wrapper(Wrapper):
     @property
     def state_descriptor_length(self) -> int:
         return self.behavior_descriptor_length
+    
+    @property
+    def behavior_descriptor_limits(self):
+        return (jnp.array([0.0, -1.0]), jnp.array([1.0, 1.0]))
 
     def reset(self, rng: jp.ndarray) -> State:
         state = self.env.reset(rng)
         
         obs_dim = state.obs.shape[0]
-        state.info["obs_sequence"] = jnp.zeros((obs_dim, self.episode_length), dtype=jnp.float32)
+        state.info["obs_sequence"] = jnp.zeros((self.episode_length, obs_dim), dtype=jnp.float32)
         state.info["current_step"] = 0
         state.info["lz76_complexity"] = jnp.float32(0)
         state.info["o_info_value"] = jnp.float32(0)
@@ -245,7 +242,7 @@ class LZ76Wrapper(Wrapper):
         
         obs = state.obs
         current_step = state.info["current_step"]
-        obs_sequence = state.info["obs_sequence"].at[:, current_step].set(obs)
+        obs_sequence = state.info["obs_sequence"].at[current_step, :].set(obs)
         
         is_final_step = current_step == (self.episode_length - 2)
         complexities = jnp.float32(state.info["lz76_complexity"])
@@ -253,21 +250,21 @@ class LZ76Wrapper(Wrapper):
         state_descriptor = state.info["state_descriptor"]
         
         def compute_final_metrics(obs_seq):
-            pca_state = pcax.fit(obs_seq, n_components=obs_seq.shape[0])
+            pca_state = pcax.fit(obs_seq, n_components=obs_seq.shape[1])
             n_components = 4
 
             transformed_obs = pcax.transform(pca_state, obs_seq)
             reduced_obs = transformed_obs[:, :n_components]
-            
+
             obs_binary = action_to_binary_padded(reduced_obs)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
             
-            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 200))))
+            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 900))))
 
             normalized_o_info = jnp.tanh(0.0049 * raw_o_info)
             
-            return normalized_complexity, normalized_o_info, jnp.array([normalized_complexity, normalized_o_info])
+            return raw_complexity, raw_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
         def keep_previous(_):
             return complexities, o_info_values, state_descriptor
@@ -279,15 +276,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        #obs_binary = action_to_binary_padded(obs_sequence)
-        #complexities = jnp.float32(LZ76_jax(obs_binary))
-        #o_info_values = jnp.float32(self._compute_o_information(obs_sequence))
-        #state_descriptor = jnp.array([complexities, o_info_values])
-
-        jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Current step: {x}", x=current_step)
         #jax.debug.print("Complexity: {x}", x=complexities)
         #jax.debug.print("O-Information: {x}", x=o_info_values)
-        jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
@@ -303,17 +295,16 @@ class LZ76Wrapper(Wrapper):
     
     def _compute_o_information(self, obs_sequence):
         """Compute O-Information with JAX operations."""
-        obs_t = jnp.transpose(obs_sequence)
-        n_samples, n_vars = obs_t.shape
+        n_samples, n_vars = obs_sequence.shape
         k = 3
-        h_joint = k_l_entropy(obs_t, k)
+        h_joint = k_l_entropy(obs_sequence, k)
         
         def body_fun(j, acc):
-            column_j = extract_single_column(obs_t, j)
+            column_j = extract_single_column(obs_sequence, j)
 
             h_xj = k_l_entropy(column_j, 1)
 
-            data_excl_j = exclude_column(obs_t, j)
+            data_excl_j = exclude_column(obs_sequence, j)
 
             h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
             

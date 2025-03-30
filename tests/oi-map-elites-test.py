@@ -177,7 +177,7 @@ def test_lz76_wrapper(env_name: str, batch_size: int) -> None:
 
 if __name__ == "__main__":
     # Ejecutar con un tamaño de lote pequeño y pocas iteraciones para pruebas
-    repertoire = run_map_elites_test("halfcheetah_oi", batch_size=100, num_iterations=1000)
+    repertoire = run_map_elites_test("halfcheetah_oi", batch_size=1, num_iterations=1)
     repertoire_path = "./last_repertoire/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
