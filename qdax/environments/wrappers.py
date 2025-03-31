@@ -10,6 +10,7 @@ from brax.v1 import jumpy as jp
 from brax.v1.envs import Env, State, Wrapper
 import pcax
 from qdax.environments.lz76 import LZ76, LZ76_jax, action_to_binary_padded
+import annax
 
 
 class CompletedEvalMetrics(flax.struct.PyTreeNode):
@@ -128,11 +129,6 @@ class OffsetRewardWrapper(Wrapper):
         state = self.env.step(state, action)
         return state.replace(reward=state.reward + self._offset)
 
-def k_nearest_distances(X, k=1):
-    distances = jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1)
-    sorted_distances = jnp.sort(distances, axis=-1)
-    return sorted_distances[:, 1:k+1]
-
 def k_l_entropy(data, k=1):
     """Calculate entropy estimate using k-nearest neighbors with pure JAX.
     
@@ -147,9 +143,9 @@ def k_l_entropy(data, k=1):
 
     vol_hypersphere = jnp.pi**(n_dimensions/2) / gamma(n_dimensions/2 + 1)
 
-    distances = k_nearest_distances(data, k)
-    epsilon = distances[:, k-1]
-
+    index = annax.Index(data)
+    distances, _ = index.search(data, k=k + 1)
+    epsilon = distances[:, k]
     entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
                jnp.log(vol_hypersphere) + 0.577216 + jnp.log(n_samples-1))
     
@@ -260,7 +256,7 @@ class LZ76Wrapper(Wrapper):
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
             
-            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 900))))
+            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 310))))
 
             normalized_o_info = jnp.tanh(0.3571 * raw_o_info)
 

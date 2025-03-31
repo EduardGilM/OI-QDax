@@ -33,7 +33,7 @@ from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map
 def run_oi_cmame_test(env_name: str, emitter_type: Type[CMAEmitter], num_iterations: int = 100) -> None:
     """Run CMA-ME test with OI wrapper and visualization."""
     # Environment parameters
-    episode_length = 100
+    episode_length = 30
     seed = 42
     policy_hidden_layer_sizes = (64, 64)
     num_init_cvt_samples = 50000
@@ -220,7 +220,7 @@ def test_oi_cmame(env_name: str, emitter_type: Type[CMAEmitter]) -> None:
 
 if __name__ == "__main__":
     # Run with a small number of iterations for testing
-    repertoire = run_oi_cmame_test("halfcheetah_oi", CMAImprovementEmitter, num_iterations=100)
+    repertoire = run_oi_cmame_test("halfcheetah_oi", CMAImprovementEmitter, num_iterations=5)
     repertoire_path = "./last_repertoire_cma/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
