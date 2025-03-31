@@ -129,9 +129,9 @@ class OffsetRewardWrapper(Wrapper):
         return state.replace(reward=state.reward + self._offset)
 
 def k_nearest_distances(X, k=1):
-    distances = jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1)  # (n_samples, n_samples)
-    sorted_distances = jnp.sort(distances, axis=-1)[:, 1:k+1]  # Excluye distancia a sí mismo (0)
-    return sorted_distances
+    distances = jnp.sum((X[:, None, :] - X[None, :, :])**2, axis=-1)
+    sorted_distances = jnp.sort(distances, axis=-1)
+    return sorted_distances[:, 1:k+1]
 
 def k_l_entropy(data, k=1):
     """Calculate entropy estimate using k-nearest neighbors with pure JAX.
@@ -262,7 +262,12 @@ class LZ76Wrapper(Wrapper):
             
             normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 900))))
 
-            normalized_o_info = jnp.tanh(0.0049 * raw_o_info)
+            normalized_o_info = jnp.tanh(0.3571 * raw_o_info)
+
+            #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
+            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
+            #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
+            #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
             return raw_complexity, raw_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
@@ -276,10 +281,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        #jax.debug.print("Current step: {x}", x=current_step)
-        #jax.debug.print("Complexity: {x}", x=complexities)
-        #jax.debug.print("O-Information: {x}", x=o_info_values)
-        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        jax.debug.print("Current step: {x}", x=current_step)
+        jax.debug.print("Complexity: {x}", x=complexities)
+        jax.debug.print("O-Information: {x}", x=o_info_values)
+        jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
