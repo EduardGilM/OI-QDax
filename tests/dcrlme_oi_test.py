@@ -1,6 +1,7 @@
 import functools
 from typing import Any, Tuple
 import os
+from datetime import datetime
 
 import jax
 import jax.numpy as jnp
@@ -229,6 +230,11 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
         length=num_iterations,
     )
     
+    # Generate timestamp for filenames
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plots_dir = "./graficas"
+    os.makedirs(plots_dir, exist_ok=True)
+    
     # Visualize results
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
     
@@ -240,7 +246,8 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
         max_bd=max_bd,  
     )
     
-    plt.show(block=False)
+    fig1.savefig(os.path.join(plots_dir, f"dcrlm_metrics_{timestamp}.png"))
+    plt.close(fig1)
 
     fig2, ax = plt.subplots(figsize=(10, 10))
     plot_2d_map_elites_repertoire(
@@ -250,7 +257,8 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
         max_bd=max_bd,    
         title=f"Archive Final - {env_name} (DCRL-ME)"
     )
-    plt.show(block=False)
+    fig2.savefig(os.path.join(plots_dir, f"dcrlm_archive_{timestamp}.png"))
+    plt.close(fig2)
     
     return repertoire
 
@@ -265,7 +273,8 @@ def test_dcrlme_oi(env_name: str) -> None:
     """Test function for pytest."""
     repertoire = run_dcrlme_oi_test(env_name, num_iterations=5)
     assert repertoire is not None
-    repertoire_path = "./last_dcrlme_oi_repertoire/"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    repertoire_path = f"./repertoires/dcrlm_oi/{timestamp}/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
 
@@ -273,7 +282,7 @@ def test_dcrlme_oi(env_name: str) -> None:
 if __name__ == "__main__":
     # Run with small number of iterations for testing
     repertoire = run_dcrlme_oi_test("halfcheetah_oi", num_iterations=1000)
-    repertoire_path = "./last_dcrlme_oi_repertoire/"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    repertoire_path = f"./repertoires/dcrlm_oi/{timestamp}/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
-    plt.show()

@@ -5,7 +5,6 @@ import os
 
 import jax
 import jax.numpy as jnp
-import pytest
 import matplotlib.pyplot as plt
 
 from qdax import environments

@@ -3,6 +3,7 @@
 import functools
 from typing import Dict, Tuple, Type
 import os
+from datetime import datetime
 
 import jax
 import jax.numpy as jnp
@@ -176,9 +177,14 @@ def run_oi_cmame_test(env_name: str, emitter_type: Type[CMAEmitter], num_iterati
         length=num_iterations,
     )
 
+    # Generate timestamp and create directories
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    plots_dir = "./graficas"
+    os.makedirs(plots_dir, exist_ok=True)
+    
     env_steps = jnp.arange(num_iterations) * episode_length * batch_size
     
-    # Visualize results
+    # Save metrics plot
     fig1, axes = plot_oi_map_elites_results(
         env_steps=env_steps,
         metrics=metrics,
@@ -186,9 +192,10 @@ def run_oi_cmame_test(env_name: str, emitter_type: Type[CMAEmitter], num_iterati
         min_bd=min_bd,  
         max_bd=max_bd,  
     )
-    
-    plt.show(block=False)
+    fig1.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_metrics_{timestamp}.png"))
+    plt.close(fig1)
 
+    # Save archive plot
     fig2, ax = plt.subplots(figsize=(10, 10))
     plot_2d_map_elites_repertoire(
         repertoire=repertoire,
@@ -197,7 +204,9 @@ def run_oi_cmame_test(env_name: str, emitter_type: Type[CMAEmitter], num_iterati
         max_bd=max_bd,    
         title=f"Archive Final - {env_name} with {emitter_type.__name__}"
     )
-    plt.show(block=False)
+    fig2.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png"))
+    plt.close(fig2)
+    
     return repertoire
 
 
@@ -213,7 +222,8 @@ def test_oi_cmame(env_name: str, emitter_type: Type[CMAEmitter]) -> None:
     """Test function for pytest."""
     repertoire = run_oi_cmame_test(env_name, emitter_type, num_iterations=10)
     assert repertoire is not None
-    repertoire_path = f"./last_repertoire_{emitter_type.__name__}/"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    repertoire_path = f"./repertoires/cma_oi/{timestamp}_{emitter_type.__name__}/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
 
@@ -221,7 +231,7 @@ def test_oi_cmame(env_name: str, emitter_type: Type[CMAEmitter]) -> None:
 if __name__ == "__main__":
     # Run with a small number of iterations for testing
     repertoire = run_oi_cmame_test("halfcheetah_oi", CMAImprovementEmitter, num_iterations=5)
-    repertoire_path = "./last_repertoire_cma/"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    repertoire_path = f"./repertoires/cma_oi/{timestamp}_CMAImprovementEmitter/"
     os.makedirs(repertoire_path, exist_ok=True)
     repertoire.save(path=repertoire_path)
-    plt.show()
