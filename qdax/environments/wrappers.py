@@ -203,6 +203,15 @@ def exclude_column(matrix, col_idx):
     
     return result
 
+EXPLAINED_VARIABLES = {
+    "ant": 6,
+    "halfcheetah": 4,
+    "walker2d": 4,
+    "hopper": 4,
+    "humanoid": 4,
+    "humanoid_w_trap": 4,
+}
+
 class LZ76Wrapper(Wrapper):
     """Wraps gym environments to add both Lempel-Ziv complexity and O-Information of the observations."""
 
@@ -226,7 +235,7 @@ class LZ76Wrapper(Wrapper):
         state = self.env.reset(rng)
         
         obs_dim = state.obs.shape[0]
-        state.info["obs_sequence"] = jnp.zeros((self.episode_length, obs_dim), dtype=jnp.float32)
+        state.info["obs_sequence"] = jnp.zeros((self.episode_length, EXPLAINED_VARIABLES[self.env.__class__.__name__.lower()]), dtype=jnp.float32)
         state.info["current_step"] = 0
         state.info["lz76_complexity"] = jnp.float32(0)
         state.info["o_info_value"] = jnp.float32(0)
@@ -247,7 +256,7 @@ class LZ76Wrapper(Wrapper):
         
         def compute_final_metrics(obs_seq):
             pca_state = pcax.fit(obs_seq, n_components=obs_seq.shape[1])
-            n_components = 4
+            n_components = EXPLAINED_VARIABLES[self.env.__class__.__name__.lower()]
 
             transformed_obs = pcax.transform(pca_state, obs_seq)
             reduced_obs = transformed_obs[:, :n_components]
