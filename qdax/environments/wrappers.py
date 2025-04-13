@@ -181,11 +181,17 @@ def exclude_column(matrix, col_idx):
     Returns:
         A matrix with shape [rows, cols-1] with col_idx removed
     """
-    n_vars = matrix.shape[1]
-    left_indices = jnp.arange(col_idx)
-    right_indices = jnp.arange(col_idx + 1, n_vars)
-    selected_indices = jnp.concatenate([left_indices, right_indices])
-    return matrix[:, selected_indices]
+    rows, cols = matrix.shape
+    
+    # Create an array of column indices [0, 1, ..., cols-1]
+    col_indices = jnp.arange(cols)
+    
+    # Create a boolean mask: True for columns to keep, False for the one to exclude
+    mask = jnp.not_equal(col_indices, col_idx)
+    
+    # Select columns using the mask. JAX handles boolean indexing along an axis.
+    # The result automatically has the shape [rows, cols-1]
+    return matrix[:, mask]
 
 EXPLAINED_VARIABLES = {
     "ant": 6,
