@@ -182,16 +182,28 @@ def exclude_column(matrix, col_idx):
         A matrix with shape [rows, cols-1] with col_idx removed
     """
     rows, cols = matrix.shape
-    
-    # Create an array of column indices [0, 1, ..., cols-1]
-    col_indices = jnp.arange(cols)
-    
-    # Create a boolean mask: True for columns to keep, False for the one to exclude
-    mask = jnp.not_equal(col_indices, col_idx)
-    
-    # Select columns using the mask. JAX handles boolean indexing along an axis.
-    # The result automatically has the shape [rows, cols-1]
-    return matrix[:, mask]
+
+    # Calcula cuánto mover la columna col_idx para que quede al final
+    # El shift necesario es -(col_idx) para moverla al principio,
+    # o (cols - 1 - col_idx) para moverla al final. Usemos -col_idx.
+    # Asegúrate de que col_idx sea del tipo adecuado si es necesario (ej. int)
+    # shift_amount = -jnp.asarray(col_idx, dtype=jnp.int32) # Puede que no sea necesario asarray
+
+    # Rueda la matriz para que la columna col_idx quede en la posición 0
+    rolled_matrix = jnp.roll(matrix, shift=-col_idx, axis=1)
+
+    # Ahora la columna a eliminar está en el índice 0.
+    # Selecciona todas las columnas EXCEPTO la primera.
+    # Este slicing SÍ es estático en cuanto a su tamaño relativo.
+    result_matrix = rolled_matrix[:, 1:] # Toma desde la columna 1 hasta el final
+
+    # NOTA: El resultado tiene las columnas reordenadas (la original 0 está ahora
+    # en alguna parte, la original 1 está en otra...). Si el cálculo posterior
+    # (k_l_entropy) es invariante al orden de las columnas, esto es suficiente.
+    # Si el orden importa, habría que deshacer el roll, lo cual es más complejo.
+    # Para k_l_entropy sobre el conjunto de columnas restantes, el orden no debería importar.
+
+    return result_matrix
 
 EXPLAINED_VARIABLES = {
     "ant": 6,
