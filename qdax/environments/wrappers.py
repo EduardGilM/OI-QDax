@@ -307,21 +307,19 @@ class LZ76Wrapper(Wrapper):
         """Compute O-Information with JAX operations."""
         n_samples, n_vars = obs_sequence.shape
         k = 3
+        
+        # Calcular entropías en paralelo
         h_joint = k_l_entropy(obs_sequence, k)
         
-        def body_fun(j, acc):
-            column_j = extract_single_column(obs_sequence, j)
-
-            h_xj = k_l_entropy(column_j, 1)
-
-            data_excl_j = exclude_column(obs_sequence, j)
-
-            h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
-            
-            return acc + (h_xj - h_excl_j)
+        # Calcular entropías individuales en paralelo
+        h_xj_values = jax.vmap(lambda j: k_l_entropy(
+            extract_single_column(obs_sequence, j), 1))(jnp.arange(n_vars))
         
-        sum_term = jax.lax.fori_loop(0, n_vars, body_fun, 0.0)
-
-        o_info = (n_vars - 2) * h_joint + sum_term
+        # Calcular entropías excluyendo columnas en paralelo 
+        h_excl_values = jax.vmap(lambda j: k_l_entropy(
+            exclude_column(obs_sequence, j), max(k-1, 1)))(jnp.arange(n_vars))
         
-        return jnp.float32(o_info)
+        # Sumar términos en paralelo
+        sum_term = jnp.sum(h_xj_values - h_excl_values)
+        
+        return (n_vars - 2) * h_joint + sum_term
