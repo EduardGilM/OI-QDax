@@ -181,16 +181,7 @@ def exclude_column(matrix, col_idx):
     Returns:
         A matrix with shape [rows, cols-1] with col_idx removed
     """
-    rows, cols = matrix.shape
-    
-    # Extraer la parte antes de col_idx
-    left_slice = lax.dynamic_slice(matrix, (0, 0), (rows, col_idx))
-    
-    # Extraer la parte después de col_idx
-    right_slice = lax.dynamic_slice(matrix, (0, col_idx + 1), (rows, cols - col_idx - 1))
-    
-    # Concatenar las dos partes
-    return jnp.concatenate([left_slice, right_slice], axis=1)
+    return jnp.delete(matrix, col_idx, axis=1)
 
 EXPLAINED_VARIABLES = {
     "ant": 6,
