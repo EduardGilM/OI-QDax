@@ -304,22 +304,26 @@ class LZ76Wrapper(Wrapper):
         return state
     
     def _compute_o_information(self, obs_sequence):
-        """Compute O-Information with JAX operations."""
+        """Compute O-Information with fully optimized JAX operations."""
         n_samples, n_vars = obs_sequence.shape
         k = 3
-        
-        # Calcular entropías en paralelo
+    
+        # Precomputar columnas
+        columns = jnp.split(obs_sequence, n_vars, axis=1)
+    
+        # Calcular entropía conjunta
         h_joint = k_l_entropy(obs_sequence, k)
-        
-        # Calcular entropías individuales en paralelo
-        h_xj_values = jax.vmap(lambda j: k_l_entropy(
-            extract_single_column(obs_sequence, j), 1))(jnp.arange(n_vars))
-        
-        # Calcular entropías excluyendo columnas en paralelo 
-        h_excl_values = jax.vmap(lambda j: k_l_entropy(
-            exclude_column(obs_sequence, j), max(k-1, 1)))(jnp.arange(n_vars))
-        
-        # Sumar términos en paralelo
-        sum_term = jnp.sum(h_xj_values - h_excl_values)
-        
+    
+        # Función para calcular términos individuales
+        def compute_h_terms(j, obs_sequence):
+            column_j = columns[j]
+            h_xj = k_l_entropy(column_j, 1)
+            data_excl_j = jnp.concatenate([obs_sequence[:, :j], obs_sequence[:, j+1:]], axis=1)
+            h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
+            return h_xj - h_excl_j
+    
+        # Calcular términos en paralelo
+        sum_term = jnp.sum(jax.vmap(compute_h_terms, in_axes=(0, None))(jnp.arange(n_vars), obs_sequence))
+    
+        # Calcular O-Information
         return (n_vars - 2) * h_joint + sum_term
