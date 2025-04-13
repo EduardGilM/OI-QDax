@@ -182,8 +182,10 @@ def exclude_column(matrix, col_idx):
         A matrix with shape [rows, cols-1] with col_idx removed
     """
     n_vars = matrix.shape[1]
-    mask = jnp.arange(n_vars) != col_idx  # Máscara: True para todas las columnas excepto `col_idx`
-    return matrix[:, mask]
+    left_indices = jnp.arange(col_idx)
+    right_indices = jnp.arange(col_idx + 1, n_vars)
+    selected_indices = jnp.concatenate([left_indices, right_indices])
+    return matrix[:, selected_indices]
 
 EXPLAINED_VARIABLES = {
     "ant": 6,
