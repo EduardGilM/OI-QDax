@@ -196,6 +196,15 @@ EXPLAINED_VARIABLES = {
     "humanoid_w_trap": 4,
 }
 
+NORMALIZED_LZ76 = {
+    "ant": 431,
+    "halfcheetah": 310,
+    "walker2d": 0.5,
+    "hopper": 0.5,
+    "humanoid": 0.5,
+    "humanoid_w_trap": 0.5,
+}
+
 class LZ76Wrapper(Wrapper):
     """Wraps gym environments to add both Lempel-Ziv complexity and O-Information of the observations."""
 
@@ -249,7 +258,7 @@ class LZ76Wrapper(Wrapper):
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
             
-            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - 310))))
+            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - NORMALIZED_LZ76[self.env.__class__.__name__.lower()])))) - 0.5
 
             normalized_o_info = jnp.tanh(0.3571 * raw_o_info)
 
@@ -270,10 +279,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        jax.debug.print("Current step: {x}", x=current_step)
-        jax.debug.print("Complexity: {x}", x=complexities)
-        jax.debug.print("O-Information: {x}", x=o_info_values)
-        jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        #jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Complexity: {x}", x=complexities)
+        #jax.debug.print("O-Information: {x}", x=o_info_values)
+        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
