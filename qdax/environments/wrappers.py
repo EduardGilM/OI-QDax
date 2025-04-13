@@ -181,27 +181,7 @@ def exclude_column(matrix, col_idx):
     Returns:
         A matrix with shape [rows, cols-1] with col_idx removed
     """
-    rows, cols = matrix.shape
-    
-    col_indices = jnp.arange(cols)
-    mask = jnp.not_equal(col_indices, col_idx)
-    
-    result = jnp.zeros((rows, cols-1), dtype=matrix.dtype)
-
-    def body_fun(i, result_matrix):
-
-        src_col = i + (i >= col_idx)
-        valid_col = i < (cols - 1)
-
-        col_data = extract_single_column(matrix, src_col)
-        
-        return result_matrix.at[:, i].set(
-            jnp.where(valid_col, col_data.flatten(), result_matrix[:, i])
-        )
-
-    result = jax.lax.fori_loop(0, cols-1, body_fun, result)
-    
-    return result
+    return jnp.concatenate([matrix[:, :col_idx], matrix[:, col_idx+1:]], axis=1)
 
 EXPLAINED_VARIABLES = {
     "ant": 6,
@@ -308,18 +288,19 @@ class LZ76Wrapper(Wrapper):
         n_samples, n_vars = obs_sequence.shape
         k = 3
     
-        # Precomputar columnas
-        columns = jnp.split(obs_sequence, n_vars, axis=1)
-    
         # Calcular entropía conjunta
         h_joint = k_l_entropy(obs_sequence, k)
     
         # Función para calcular términos individuales
         def compute_h_terms(j, obs_sequence):
-            column_j = columns[j]
+            # Extraer columna j
+            column_j = extract_single_column(obs_sequence, j)
             h_xj = k_l_entropy(column_j, 1)
-            data_excl_j = jnp.concatenate([obs_sequence[:, :j], obs_sequence[:, j+1:]], axis=1)
+            
+            # Excluir la columna j
+            data_excl_j = exclude_column(obs_sequence, j)
             h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
+            
             return h_xj - h_excl_j
     
         # Calcular términos en paralelo
