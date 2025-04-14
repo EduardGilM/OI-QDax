@@ -279,7 +279,7 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        #jax.debug.print("Current step: {x}", x=current_step)
+        jax.debug.print("Current step: {x}", x=current_step)
         #jax.debug.print("Complexity: {x}", x=complexities)
         #jax.debug.print("O-Information: {x}", x=o_info_values)
         #jax.debug.print("State descriptor: {x}", x=state_descriptor)
