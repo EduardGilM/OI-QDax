@@ -190,19 +190,17 @@ def exclude_column(matrix, col_idx):
 EXPLAINED_VARIABLES = {
     "ant": 6,
     "halfcheetah": 4,
-    "walker2d": 4,
+    "walker2d": 3,
     "hopper": 4,
     "humanoid": 4,
-    "humanoid_w_trap": 4,
 }
 
 NORMALIZED_LZ76 = {
     "ant": 431,
     "halfcheetah": 310,
-    "walker2d": 0.5,
+    "walker2d": 200,
     "hopper": 0.5,
     "humanoid": 0.5,
-    "humanoid_w_trap": 0.5,
 }
 
 class LZ76Wrapper(Wrapper):
@@ -257,8 +255,17 @@ class LZ76Wrapper(Wrapper):
             obs_binary = action_to_binary_padded(reduced_obs)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
+
+            explained_variance = pca_state.explained_variance
+
+            total_variance = jnp.sum(explained_variance)
+            explained_variance_ratio = explained_variance / total_variance
+            cumulative = jnp.cumsum(explained_variance_ratio)
+
+            n_comps = jnp.sum(cumulative < 0.85) + 1
+            #jax.debug.print("Number of components: {x}", x=n_comps)
             
-            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - NORMALIZED_LZ76[self.env.__class__.__name__.lower()])))) - 0.5
+            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - NORMALIZED_LZ76[self.env.__class__.__name__.lower()]))))
 
             normalized_o_info = jnp.tanh(0.3571 * raw_o_info)
 
@@ -279,7 +286,7 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Current step: {x}", x=current_step)
         #jax.debug.print("Complexity: {x}", x=complexities)
         #jax.debug.print("O-Information: {x}", x=o_info_values)
         #jax.debug.print("State descriptor: {x}", x=state_descriptor)
