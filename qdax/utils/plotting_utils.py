@@ -180,7 +180,7 @@ def plot_2d_map_elites_repertoire(
     xlim: Optional[Tuple[float, float]] = None,
     ylim: Optional[Tuple[float, float]] = None,
     use_voronoi: bool = True,
-    show_stats: bool = True,
+    show_stats: bool = False,
 ) -> Tuple[Optional[Figure], Axes]:
     """
     Plot a 2D visualization of a MAP-Elites repertoire with LZ76 and O-Information as descriptors.
