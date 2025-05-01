@@ -197,7 +197,7 @@ EXPLAINED_VARIABLES = {
 
 NORMALIZED_LZ76 = {
     "ant": 431,
-    "halfcheetah": 310,
+    "halfcheetah": 120, #310
     "walker2d": 220,
     "hopper": 200,
     "humanoid": 500,
@@ -252,7 +252,11 @@ class LZ76Wrapper(Wrapper):
             transformed_obs = pcax.transform(pca_state, obs_seq)
             reduced_obs = transformed_obs[:, :n_components]
 
-            obs_binary = action_to_binary_padded(reduced_obs)
+            # Create a list with only vectors at indices divisible by 3 (0, 3, 6, 9, ...)
+            indices = jnp.arange(0, reduced_obs.shape[0], 3)
+            lz_reduced_obs = reduced_obs[indices, :]
+
+            obs_binary = action_to_binary_padded(lz_reduced_obs)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
             
@@ -277,7 +281,7 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Current step: {x}", x=current_step)
         #jax.debug.print("Complexity: {x}", x=complexities)
         #jax.debug.print("O-Information: {x}", x=o_info_values)
         #jax.debug.print("State descriptor: {x}", x=state_descriptor)
