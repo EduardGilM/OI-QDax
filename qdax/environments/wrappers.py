@@ -250,7 +250,7 @@ class LZ76Wrapper(Wrapper):
             normalized_o_info = jnp.tanh(0.001855 * raw_o_info)
 
             #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
-            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
+            jax.debug.print("Raw o-info: {x}", x=raw_o_info)
             #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
             #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
