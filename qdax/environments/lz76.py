@@ -66,13 +66,18 @@ def LZ76(ss):
     return c
 
 def action_to_binary(action: jnp.ndarray) -> jnp.ndarray:
-    """Convert actions to a JAX-compatible binary representation."""
-    # Scale actions to [0, 1] range first
-    scaled_action = (action + 1.0) / 2.0
-    # Convert to 32-bit integer with appropriate scaling
-    scaled_action = (scaled_action * 1e6).astype(jnp.int32)
+    """Convert actions to a JAX-compatible binary representation.
+    
+    For each floating-point action value, uses 16 bits to represent it
+    instead of the full 32 bits for float32 to reduce complexity.
+    """
+    # Convert to float16 to reduce the bit representation
+    action_float16 = action.astype(jnp.float16)
+    # Convert float16 to its exact bit representation
+    action_view = action_float16.view(jnp.uint16)
+    # Unpack bits while preserving the exact binary representation
     binary_rep = jnp.unpackbits(
-        scaled_action.view(jnp.uint8), bitorder='big', axis=-1
+        action_view.view(jnp.uint8), bitorder='big', axis=-1
     )
     binary_rep_flat = binary_rep.reshape(-1)
     return binary_rep_flat

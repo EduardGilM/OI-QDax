@@ -230,7 +230,7 @@ def test_oi_cmame(env_name: str, emitter_type: Type[CMAEmitter]) -> None:
 
 if __name__ == "__main__":
     # Run with a small number of iterations for testing
-    repertoire = run_oi_cmame_test("halfcheetah_oi", CMAOptimizingEmitter, num_iterations=1000)
+    repertoire = run_oi_cmame_test("halfcheetah_oi", CMAOptimizingEmitter, num_iterations=1)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     repertoire_path = f"./repertoires/cma_oi/{timestamp}_CMAImprovementEmitter/"
     os.makedirs(repertoire_path, exist_ok=True)

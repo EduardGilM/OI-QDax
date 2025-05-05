@@ -187,17 +187,9 @@ def exclude_column(matrix, col_idx):
 
     return result_matrix
 
-EXPLAINED_VARIABLES = {
-    "ant": 6,
-    "halfcheetah": 4,
-    "walker2d": 3,
-    "hopper": 3,
-    "humanoid": 7,
-}
-
 NORMALIZED_LZ76 = {
     "ant": 431,
-    "halfcheetah": 120, #310
+    "halfcheetah": 258, #310
     "walker2d": 220,
     "hopper": 200,
     "humanoid": 500,
@@ -234,7 +226,7 @@ class LZ76Wrapper(Wrapper):
         return state
 
     def step(self, state: State, action: jp.ndarray) -> State:
-        state = self.env.step(state, action)
+        state = self.env.step(state, action)    
         
         obs = state.obs
         current_step = state.info["current_step"]
@@ -246,23 +238,16 @@ class LZ76Wrapper(Wrapper):
         state_descriptor = state.info["state_descriptor"]
         
         def compute_final_metrics(obs_seq):
-            pca_state = pcax.fit(obs_seq, n_components=obs_seq.shape[1])
-            n_components = EXPLAINED_VARIABLES[self.env.__class__.__name__.lower()]
+        
+            indices = jnp.linspace(0, 28, 10).astype(jnp.int32)
+            complexity_obs_seq = obs_seq[indices]
 
-            transformed_obs = pcax.transform(pca_state, obs_seq)
-            reduced_obs = transformed_obs[:, :n_components]
-
-            # Create a list with only vectors at indices divisible by 3 (0, 3, 6, 9, ...)
-            indices = jnp.arange(0, reduced_obs.shape[0], 3)
-            lz_reduced_obs = reduced_obs[indices, :]
-
-            obs_binary = action_to_binary_padded(lz_reduced_obs)
+            obs_binary = action_to_binary_padded(complexity_obs_seq)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
-            raw_o_info = jnp.float32(self._compute_o_information(reduced_obs))
+            raw_o_info = jnp.float32(self._compute_o_information(obs_seq))
             
             normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - NORMALIZED_LZ76[self.env.__class__.__name__.lower()]))))
-
-            normalized_o_info = jnp.tanh(0.3571 * raw_o_info)
+            normalized_o_info = jnp.tanh(0.001855 * raw_o_info)
 
             #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
             #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
@@ -274,6 +259,7 @@ class LZ76Wrapper(Wrapper):
         def keep_previous(_):
             return complexities, o_info_values, state_descriptor
         
+        
         complexities, o_info_values, state_descriptor = jax.lax.cond(
             is_final_step,
             compute_final_metrics,
@@ -281,10 +267,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        #jax.debug.print("Current step: {x}", x=current_step)
-        #jax.debug.print("Complexity: {x}", x=complexities)
-        #jax.debug.print("O-Information: {x}", x=o_info_values)
-        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        jax.debug.print("Current step: {x}", x=current_step)
+        jax.debug.print("Complexity: {x}", x=complexities)
+        jax.debug.print("O-Information: {x}", x=o_info_values)
+        jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
