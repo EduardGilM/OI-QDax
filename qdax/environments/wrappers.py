@@ -188,11 +188,19 @@ def exclude_column(matrix, col_idx):
     return result_matrix
 
 NORMALIZED_LZ76 = {
-    "ant": 431,
-    "halfcheetah": 258, #310
-    "walker2d": 220,
-    "hopper": 200,
-    "humanoid": 500,
+    "ant": (237, 378),
+    "halfcheetah": (250, 270),
+    "walker2d": (-538.19, 538.19),
+    "hopper": (-538.19, 538.19),
+    "humanoid": (-538.19, 538.19),
+}
+
+NORMALIZED_OI = {
+    "ant": (-1457, 1751),
+    "halfcheetah": (-1077, 1271),
+    "walker2d": (-538.19, 538.19),
+    "hopper": (-538.19, 538.19),
+    "humanoid": (-538.19, 538.19),
 }
 
 class LZ76Wrapper(Wrapper):
@@ -218,6 +226,11 @@ class LZ76Wrapper(Wrapper):
         state = self.env.reset(rng)
         
         obs_dim = state.obs.shape[0]
+        is_ant = self.env.__class__.__name__.lower() == "ant"
+
+        if is_ant:
+            obs_dim = min(obs_dim, 27)
+
         state.info["obs_sequence"] = jnp.zeros((self.episode_length, obs_dim), dtype=jnp.float32)
         state.info["current_step"] = 0
         state.info["lz76_complexity"] = jnp.float32(0)
@@ -229,6 +242,10 @@ class LZ76Wrapper(Wrapper):
         state = self.env.step(state, action)    
         
         obs = state.obs
+        obs_dim = state.info["obs_sequence"].shape[1]
+        
+        obs = obs[:obs_dim]
+        
         current_step = state.info["current_step"]
         obs_sequence = state.info["obs_sequence"].at[current_step, :].set(obs)
         
@@ -238,19 +255,23 @@ class LZ76Wrapper(Wrapper):
         state_descriptor = state.info["state_descriptor"]
         
         def compute_final_metrics(obs_seq):
-        
+
             indices = jnp.linspace(0, 28, 10).astype(jnp.int32)
             complexity_obs_seq = obs_seq[indices]
 
             obs_binary = action_to_binary_padded(complexity_obs_seq)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(obs_seq))
+
+            env_name = self.env.__class__.__name__.lower()
+            lz76_min, lz76_max = NORMALIZED_LZ76[env_name]
+            oi_min, oi_max = NORMALIZED_OI[env_name]
             
-            normalized_complexity = (1/ (1 + jnp.exp(-0.22 * (raw_complexity - NORMALIZED_LZ76[self.env.__class__.__name__.lower()]))))
-            normalized_o_info = jnp.tanh(0.001855 * raw_o_info)
+            normalized_complexity = jnp.clip((raw_complexity - lz76_min) / (lz76_max - lz76_min), 0.0, 1.0)
+            normalized_o_info = jnp.clip(2.0 * ((raw_o_info - oi_min) / (oi_max - oi_min)) - 1.0, -1.0, 1.0)
 
             #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
-            jax.debug.print("Raw o-info: {x}", x=raw_o_info)
+            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
             #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
             #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
@@ -267,10 +288,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        jax.debug.print("Current step: {x}", x=current_step)
-        jax.debug.print("Complexity: {x}", x=complexities)
-        jax.debug.print("O-Information: {x}", x=o_info_values)
-        jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        #jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Complexity: {x}", x=complexities)
+        #jax.debug.print("O-Information: {x}", x=o_info_values)
+        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
@@ -288,24 +309,20 @@ class LZ76Wrapper(Wrapper):
         """Compute O-Information with fully optimized JAX operations."""
         n_samples, n_vars = obs_sequence.shape
         k = 3
-    
-        # Calcular entropía conjunta
+
         h_joint = k_l_entropy(obs_sequence, k)
-    
-        # Función para calcular términos individuales
+
         def compute_h_terms(j, obs_sequence):
-            # Extraer columna j
             column_j = extract_single_column(obs_sequence, j)
             h_xj = k_l_entropy(column_j, 1)
             
-            # Excluir la columna j
             data_excl_j = exclude_column(obs_sequence, j)
             h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
             
-            return h_xj - h_excl_j
+            term_result = h_xj - h_excl_j
+
+            return term_result
     
-        # Calcular términos en paralelo
         sum_term = jnp.sum(jax.vmap(compute_h_terms, in_axes=(0, None))(jnp.arange(n_vars), obs_sequence))
-    
-        # Calcular O-Information
+
         return (n_vars - 2) * h_joint + sum_term
