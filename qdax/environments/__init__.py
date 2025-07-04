@@ -13,11 +13,13 @@ from qdax.environments.base_wrappers import QDEnv, StateDescriptorResetWrapper
 from qdax.environments.bd_extractors import (
     get_feet_contact_proportion,
     get_final_xy_position,
-    get_lz76_complexity
+    get_lz76_complexity,
+    get_hand_joint_positions
 )
 from qdax.environments.exploration_wrappers import MazeWrapper, TrapWrapper
 from qdax.environments.humanoidtrap import HumanoidTrap
 from qdax.environments.init_state_wrapper import FixedInitialStateWrapper
+from qdax.environments.left_hand import LeftHand
 from qdax.environments.locomotion_wrappers import (
     FeetContactWrapper,
     NoForwardRewardWrapper,
@@ -46,7 +48,8 @@ reward_offset = {
     "walker2d_oi": 0.0,    
     "ant_oi": 0.0,          
     "humanoid_oi": 0.0,      
-    "pointmaze_oi": 0.0,  
+    "pointmaze_oi": 0.0,
+    "left_hand": 0.0,
 }
 
 behavior_descriptor_extractor = {
@@ -68,11 +71,13 @@ behavior_descriptor_extractor = {
     "halfcheetah_oi": get_lz76_complexity,
     "hopper_oi": get_lz76_complexity,
     "walker2d_oi": get_lz76_complexity,
+    "left_hand": get_hand_joint_positions,
 }
 
 _qdax_envs = {
     "pointmaze": PointMaze,
     "humanoid_w_trap": HumanoidTrap,
+    "left_hand": LeftHand,
 }
 
 _qdax_custom_envs = {
