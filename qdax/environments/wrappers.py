@@ -193,7 +193,6 @@ NORMALIZED_LZ76 = {
     "walker2d": (-538.19, 538.19),
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
-    "lefthand": (200, 400),  # Estimated values for left hand
 }
 
 NORMALIZED_OI = {
@@ -202,7 +201,6 @@ NORMALIZED_OI = {
     "walker2d": (-538.19, 538.19),
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
-    "lefthand": (-1000, 1000),  # Estimated values for left hand
 }
 
 class LZ76Wrapper(Wrapper):
