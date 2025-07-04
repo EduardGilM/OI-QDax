@@ -13,7 +13,9 @@ from qdax.environments.base_wrappers import QDEnv, StateDescriptorResetWrapper
 from qdax.environments.bd_extractors import (
     get_feet_contact_proportion,
     get_final_xy_position,
-    get_lz76_complexity
+    get_lz76_complexity,
+    get_hand_final_configuration,
+    get_hand_movement_diversity
 )
 from qdax.environments.exploration_wrappers import MazeWrapper, TrapWrapper
 from qdax.environments.humanoidtrap import HumanoidTrap
@@ -25,6 +27,7 @@ from qdax.environments.locomotion_wrappers import (
 )
 from qdax.environments.pointmaze import PointMaze
 from qdax.environments.wrappers import CompletedEvalWrapper, LZ76Wrapper
+from qdax.environments.left_hand import LeftHand
 
 # experimentally determinated offset (except for antmaze)
 # should be sufficient to have only positive rewards but no guarantee
@@ -46,7 +49,9 @@ reward_offset = {
     "walker2d_oi": 0.0,    
     "ant_oi": 0.0,          
     "humanoid_oi": 0.0,      
-    "pointmaze_oi": 0.0,  
+    "pointmaze_oi": 0.0,
+    "left_hand": 0.0,  # Left hand manipulation environment
+    "left_hand_oi": 0.0,  # Left hand with LZ76 complexity
 }
 
 behavior_descriptor_extractor = {
@@ -68,11 +73,14 @@ behavior_descriptor_extractor = {
     "halfcheetah_oi": get_lz76_complexity,
     "hopper_oi": get_lz76_complexity,
     "walker2d_oi": get_lz76_complexity,
+    "left_hand": get_hand_final_configuration,
+    "left_hand_oi": get_lz76_complexity,
 }
 
 _qdax_envs = {
     "pointmaze": PointMaze,
     "humanoid_w_trap": HumanoidTrap,
+    "left_hand": LeftHand,
 }
 
 _qdax_custom_envs = {
@@ -154,6 +162,11 @@ _qdax_custom_envs = {
     },
     "walker2d_oi": {
         "env": "walker2d",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "left_hand_oi": {
+        "env": "left_hand",
         "wrappers": [LZ76Wrapper],
         "kwargs": [{}],
     },
