@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import flax.struct
 import jax
 import jax.numpy as jnp
@@ -7,47 +9,24 @@ import jax.numpy as jnp
 from qdax.core.neuroevolution.buffers.buffer import QDTransition
 from qdax.custom_types import Descriptor, Params
 
-from qdax.environments.lz76 import LZ76, LZ76_jax, action_to_binary
 
+def get_hand_joint_positions(data: Any, mask: Any) -> Any:
+    """Get final joint positions for the left hand.
 
-def get_final_xy_position(data: QDTransition, mask: jnp.ndarray) -> Descriptor:
-    """Compute final xy positon.
+    Args:
+        data: environment data containing joint positions
+        mask: boolean mask for valid time steps
 
-    This function suppose that state descriptor is the xy position, as it
-    just select the final one of the state descriptors given.
+    Returns:
+        Joint positions of the first 4 joints (index finger) as behavior descriptor
     """
-    # reshape mask for bd extraction
-    mask = jnp.expand_dims(mask, axis=-1)
+    # Extract joint positions (first 4 joints - index finger)
+    joint_positions = data.obs[:, :4]  # First 4 joints
 
-    # Get behavior descriptor
-    last_index = jnp.int32(jnp.sum(1.0 - mask, axis=1)) - 1
-    descriptors = jax.vmap(lambda x, y: x[y])(data.state_desc, last_index)
+    # Get final positions (last valid timestep)
+    final_positions = joint_positions[mask.sum(axis=-1) - 1]
 
-    # remove the dim coming from the trajectory
-    return descriptors.squeeze(axis=1)
-
-
-def get_feet_contact_proportion(data: QDTransition, mask: jnp.ndarray) -> Descriptor:
-    """Compute feet contact time proportion.
-
-    This function suppose that state descriptor is the feet contact, as it
-    just computes the mean of the state descriptors given.
-    """
-    # reshape mask for bd extraction
-    mask = jnp.expand_dims(mask, axis=-1)
-
-    # Get behavior descriptor
-    descriptors = jnp.sum(data.state_desc * (1.0 - mask), axis=1)
-    descriptors = descriptors / jnp.sum(1.0 - mask, axis=1)
-
-    return descriptors
-
-
-def get_lz76_complexity(data: QDTransition, mask: jnp.ndarray) -> Descriptor:
-    """Calcula la complejidad de Lempel-Ziv y la O-Information de las acciones tomadas."""
-    #jax.debug.print("Data: {x}", x=data.state_desc)
-    #jax.debug.print("Data masked: {x}", x=data.state_desc[:, len(data.state_desc[0]) - 1])
-    return data.state_desc[:, len(data.state_desc[0]) - 1]
+    return final_positions
 
 
 class AuroraExtraInfo(flax.struct.PyTreeNode):
