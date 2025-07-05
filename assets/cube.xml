@@ -1,0 +1,22 @@
+<!-- assets/cube.xml -->
+<mujoco model="cube">
+  <!-- Un integrador genérico; cámbialo si lo necesitas -->
+  <option integrator="implicitfast"/>
+
+  <worldbody>
+    <!--  El cuerpo “cube” quedará libre en el espacio gracias al freejoint.
+          Ajusta la posición inicial (pos="x y z") según dónde quieras soltarlo
+          respecto a la mano.  Ej.: encima de la palma: pos="0 0 0.15" -->
+    <body name="cube" pos="0 0 0.15">
+      <freejoint name="cube_free"/>
+      <!-- inercia: masa + diagonal del tensor -->
+      <inertial mass="0.05" diaginertia="0.0001 0.0001 0.0001"/>
+      <!-- geom físico y visual de la caja -->
+      <geom name="cube_geom"
+            type="box"
+            size="0.0375 0.0375 0.0375"
+            rgba="0.3 0.3 0.9 1"
+            friction="1 0.005 0.0001"/>
+    </body>
+  </worldbody>
+</mujoco>

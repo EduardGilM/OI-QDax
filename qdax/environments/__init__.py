@@ -17,6 +17,7 @@ from qdax.environments.bd_extractors import (
 )
 from qdax.environments.exploration_wrappers import MazeWrapper, TrapWrapper
 from qdax.environments.humanoidtrap import HumanoidTrap
+from qdax.environments.left_hand_brax import LeftHandBrax
 from qdax.environments.init_state_wrapper import FixedInitialStateWrapper
 from qdax.environments.locomotion_wrappers import (
     FeetContactWrapper,
@@ -72,6 +73,7 @@ behavior_descriptor_extractor = {
 
 _qdax_envs = {
     "pointmaze": PointMaze,
+    "left_hand_brax": LeftHandBrax,
     "humanoid_w_trap": HumanoidTrap,
 }
 

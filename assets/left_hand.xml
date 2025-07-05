@@ -8,7 +8,7 @@ Naming Conventions
 * Thumb phalances: {mp, bs, px, ds} denote {metacarpal, base, proximal, distal} phalanges.
 
 |========|===========|
-| BODY # | BODY NAME |
+| frame # | frame NAME |
 |========|===========|
 |  PALM  |   palm    |
 |========|===========|
@@ -63,8 +63,8 @@ Naming Conventions
 -->
 
 <mujoco model="leap_rh">
-  <compiler angle="radian" meshdir="./assets/"/>
-  <option integrator="implicitfast" cone="elliptic" impratio="100"/>
+  <compiler angle="radian" meshdir="."/>
+  <option integrator="Euler"/>
 
   <asset>
     <material name="black" rgba="0.2 0.2 0.2 1" />
@@ -233,8 +233,8 @@ Naming Conventions
 
   <worldbody>
     <body name="palm" pos="0 0 0.1" quat="0 1 0 0">
+      <joint name="root" type="free"/>
       <!-- palm -->
-      <inertial pos="-0.12546 -0.047739 0.015867" quat="0.423786 0.570263 -0.402758 0.577054" mass="0.235" diaginertia="0.000405067 0.000304529 0.000179484"/>
       <geom name="palm_visual" pos="-0.0955 -0.117 0.0207" quat="9.38189e-07 9.38183e-07 0.707105 0.707109" class="visual" mesh="palm"/>
       <geom name="palm_collision_1" size="0.011 0.013 0.017" pos="-0.0848 -0.0996 0.0152" type="box" class="collision"/>
       <geom name="palm_collision_2" size="0.011 0.013 0.017" pos="-0.0848 -0.0546 0.0152" type="box" class="collision"/>

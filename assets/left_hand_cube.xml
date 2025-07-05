@@ -1,0 +1,4 @@
+<mujoco model="left_hand_task">
+  <include file="left_hand.xml"/>
+  <include file="cube.xml"/>
+</mujoco>
