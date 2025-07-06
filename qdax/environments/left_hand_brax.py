@@ -24,7 +24,7 @@ from brax.io import mjcf
 # Helper to locate the asset regardless of the installation layout.
 # -----------------------------------------------------------------------------
 
-_ASSET_PATH = epath.Path(__file__).parent.parent.parent / "assets" / "left_hand.xml"
+_ASSET_PATH = epath.Path(__file__).parent.parent.parent / "assets" / "left_hand_cube.xml"
 
 
 class LeftHandBrax(PipelineEnv):
