@@ -147,7 +147,7 @@ def k_l_entropy(data, k=1):
     distances, _ = index.search(data, k=k + 1)
     epsilon = distances[:, k]
     entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
-               jnp.log(vol_hypersphere) + 0.577216 + jnp.log(n_samples-1))
+               jnp.log(vol_hypersphere + 1e-10) + 0.577216 + jnp.log(n_samples-1))
     
     return jnp.float32(entropy)
 
@@ -193,6 +193,7 @@ NORMALIZED_LZ76 = {
     "walker2d": (-538.19, 538.19),
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
+    "grasp": (1112, 1088),
 }
 
 NORMALIZED_OI = {
@@ -201,6 +202,7 @@ NORMALIZED_OI = {
     "walker2d": (-538.19, 538.19),
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
+    "grasp": (-800, 1462),
 }
 
 class LZ76Wrapper(Wrapper):
@@ -270,10 +272,10 @@ class LZ76Wrapper(Wrapper):
             normalized_complexity = jnp.clip((raw_complexity - lz76_min) / (lz76_max - lz76_min), 0.0, 1.0)
             normalized_o_info = jnp.clip(2.0 * ((raw_o_info - oi_min) / (oi_max - oi_min)) - 1.0, -1.0, 1.0)
 
-            #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
-            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
-            #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
-            #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
+            jax.debug.print("Raw complexity: {x}", x=raw_complexity)
+            jax.debug.print("Raw o-info: {x}", x=raw_o_info)
+            jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
+            jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
             return raw_complexity, raw_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
