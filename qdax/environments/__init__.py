@@ -48,6 +48,7 @@ reward_offset = {
     "humanoid_oi": 0.0,      
     "pointmaze_oi": 0.0,  
     "grasp_oi": 0.0,
+    "fetch_oi": 0.0,
 }
 
 behavior_descriptor_extractor = {
@@ -70,6 +71,7 @@ behavior_descriptor_extractor = {
     "hopper_oi": get_lz76_complexity,
     "walker2d_oi": get_lz76_complexity,
     "grasp_oi": get_lz76_complexity,
+    "fetch_oi": get_lz76_complexity,
 }
 
 _qdax_envs = {
@@ -161,6 +163,11 @@ _qdax_custom_envs = {
     },
     "grasp_oi": {
         "env": "grasp",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "fetch_oi": {
+        "env": "fetch",
         "wrappers": [LZ76Wrapper],
         "kwargs": [{}],
     },

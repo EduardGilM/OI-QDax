@@ -281,7 +281,7 @@ def test_dcrlme_oi(env_name: str) -> None:
 
 if __name__ == "__main__":
     # Run with small number of iterations for testing
-    repertoire = run_dcrlme_oi_test("grasp_oi", num_iterations=1000)
+    repertoire = run_dcrlme_oi_test("fetch_oi", num_iterations=1)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     repertoire_path = f"./repertoires/dcrlm_oi/{timestamp}/"
     os.makedirs(repertoire_path, exist_ok=True)

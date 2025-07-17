@@ -25,6 +25,7 @@ class FixedInitialStateWrapper(Wrapper):
             "hopper": lambda qp, info, action: self._get_obs(qp),
             "humanoid": lambda qp, info, action: self._get_obs(qp, info, action),
             "grasp": lambda qp, info, action: self._get_obs(qp, info),
+            "fetch": lambda qp, info, action: self._get_obs(qp, info),
         }
 
         super().__init__(env)

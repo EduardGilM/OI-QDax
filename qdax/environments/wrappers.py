@@ -194,6 +194,7 @@ NORMALIZED_LZ76 = {
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
     "grasp": (1112, 1088),
+    "fetch": (950, 970),
 }
 
 NORMALIZED_OI = {
@@ -203,6 +204,7 @@ NORMALIZED_OI = {
     "hopper": (-538.19, 538.19),
     "humanoid": (-538.19, 538.19),
     "grasp": (-800, 1462),
+    "fetch": (-600, 1300),
 }
 
 class LZ76Wrapper(Wrapper):
@@ -272,10 +274,10 @@ class LZ76Wrapper(Wrapper):
             normalized_complexity = jnp.clip((raw_complexity - lz76_min) / (lz76_max - lz76_min), 0.0, 1.0)
             normalized_o_info = jnp.clip(2.0 * ((raw_o_info - oi_min) / (oi_max - oi_min)) - 1.0, -1.0, 1.0)
 
-            #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
-            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
-            #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
-            #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
+            jax.debug.print("Raw complexity: {x}", x=raw_complexity)
+            jax.debug.print("Raw o-info: {x}", x=raw_o_info)
+            jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
+            jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
             return raw_complexity, raw_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
@@ -290,10 +292,10 @@ class LZ76Wrapper(Wrapper):
             obs_sequence
         )
 
-        jax.debug.print("Current step: {x}", x=current_step)
-        jax.debug.print("Complexity: {x}", x=complexities)
-        jax.debug.print("O-Information: {x}", x=o_info_values)
-        jax.debug.print("State descriptor: {x}", x=state_descriptor)
+        #jax.debug.print("Current step: {x}", x=current_step)
+        #jax.debug.print("Complexity: {x}", x=complexities)
+        #jax.debug.print("O-Information: {x}", x=o_info_values)
+        #jax.debug.print("State descriptor: {x}", x=state_descriptor)
 
         state.info.update({
             "obs_sequence": obs_sequence,
