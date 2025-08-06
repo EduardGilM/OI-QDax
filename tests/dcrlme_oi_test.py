@@ -36,7 +36,7 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
     # Archive
     num_init_cvt_samples = 50000
     num_centroids = 1024
-    policy_hidden_layer_sizes = (128, 128, 128)
+    policy_hidden_layer_sizes = (128, 128)
 
     # DCRL-ME
     ga_batch_size = 128
