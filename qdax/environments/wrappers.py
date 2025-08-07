@@ -330,3 +330,4 @@ class LZ76Wrapper(Wrapper):
         sum_term = jnp.sum(jax.vmap(compute_h_terms, in_axes=(0, None))(jnp.arange(n_vars), obs_sequence))
 
         return (n_vars - 2) * h_joint + sum_term
+
