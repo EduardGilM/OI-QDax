@@ -260,7 +260,7 @@ class LZ76Wrapper(Wrapper):
         
         def compute_final_metrics(obs_seq):
 
-            indices = jnp.linspace(0, 28, 10).astype(jnp.int32)
+            indices = jnp.linspace(0, 28, 12).astype(jnp.int32)
             complexity_obs_seq = obs_seq[indices]
 
             obs_binary = action_to_binary_padded(complexity_obs_seq)
