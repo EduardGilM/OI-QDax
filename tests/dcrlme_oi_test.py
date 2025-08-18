@@ -27,7 +27,7 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
     """Run DCRLME test with the LZ76 wrapper and visualization."""
     seed = 42
 
-    episode_length = 30
+    episode_length = 32
     min_bd = (0, -1)
     max_bd = (1, 1) 
 
@@ -281,7 +281,7 @@ def test_dcrlme_oi(env_name: str) -> None:
 
 if __name__ == "__main__":
     # Run with small number of iterations for testing
-    repertoire = run_dcrlme_oi_test("fetch_oi", num_iterations=1003)
+    repertoire = run_dcrlme_oi_test("fetch_oi", num_iterations=1000)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     repertoire_path = f"./repertoires/dcrlm_oi/{timestamp}/"
     os.makedirs(repertoire_path, exist_ok=True)
