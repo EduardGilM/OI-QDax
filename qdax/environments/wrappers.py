@@ -312,7 +312,9 @@ class LZ76Wrapper(Wrapper):
     def _compute_o_information(self, obs_sequence):
         """Compute O-Information with fully optimized JAX operations."""
         n_samples, n_vars = obs_sequence.shape
-        k = 3
+        num_devices = jax.device_count()
+        samples_per_device = n_samples // num_devices if num_devices > 0 else n_samples
+        k = min(3, max(1, samples_per_device - 1))
 
         h_joint = k_l_entropy(obs_sequence, k)
 
