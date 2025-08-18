@@ -33,6 +33,8 @@ from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map
 
 def run_oi_cmame_test(env_name: str, emitter_type: Type[CMAEmitter], num_iterations: int = 100) -> None:
     """Run CMA-ME test with OI wrapper and visualization."""
+
+    print(f"Num devices: {jax.device_count()}")
     # Environment parameters
     episode_length = 30
     seed = 42
