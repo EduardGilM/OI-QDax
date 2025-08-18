@@ -139,25 +139,15 @@ def k_l_entropy(data, k=1):
     Returns:
         entropy: float, entropy estimate
     """
-    n_samples, n_dims = data.shape
-    
-    is_valid = jnp.any(data != 0.0, axis=1)
-    valid_data = data[is_valid]
-    n_valid = jnp.sum(is_valid)
-    if n_valid < 2:
-        return jnp.float32(0.0)
-    
-    k = min(k, n_valid - 1)
-    if k < 1:
-        return jnp.float32(0.0)
-    
-    vol_hypersphere = jnp.pi**(n_dims/2) / gamma(n_dims/2 + 1)
-    index = annax.Index(valid_data)
-    distances, _ = index.search(valid_data, k=k + 1)
-    
+    n_samples, n_dimensions = data.shape
+
+    vol_hypersphere = jnp.pi**(n_dimensions/2) / gamma(n_dimensions/2 + 1)
+
+    index = annax.Index(data)
+    distances, _ = index.search(data, k=k + 1)
     epsilon = distances[:, k]
-    entropy = (n_dims * jnp.mean(jnp.log(epsilon + 1e-10)) + 
-               jnp.log(vol_hypersphere + 1e-10) + 0.577216 + jnp.log(n_valid-1))
+    entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
+               jnp.log(vol_hypersphere + 1e-10) + 0.577216 + jnp.log(n_samples-1))
     
     return jnp.float32(entropy)
 
