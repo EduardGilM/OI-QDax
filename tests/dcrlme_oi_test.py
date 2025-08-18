@@ -25,6 +25,8 @@ from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map
 
 def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 10) -> None:
     """Run DCRLME test with the LZ76 wrapper and visualization."""
+
+    print(f"Num devices: {jax.device_count()}")
     seed = 42
 
     episode_length = 33
