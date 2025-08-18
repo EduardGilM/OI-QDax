@@ -144,7 +144,7 @@ def k_l_entropy(data, k=1):
     vol_hypersphere = jnp.pi**(n_dimensions/2) / gamma(n_dimensions/2 + 1)
 
     index = annax.Index(data)
-    distances, _ = index.search(data, k=1)
+    distances, _ = index.search(data, k=k + 1)
     epsilon = distances[:, k]
     entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
                jnp.log(vol_hypersphere + 1e-10) + 0.577216 + jnp.log(n_samples-1))
