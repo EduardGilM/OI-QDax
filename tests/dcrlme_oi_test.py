@@ -27,7 +27,7 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
     """Run DCRLME test with the LZ76 wrapper and visualization."""
     seed = 42
 
-    episode_length = 32
+    episode_length = 33
     min_bd = (0, -1)
     max_bd = (1, 1) 
 
