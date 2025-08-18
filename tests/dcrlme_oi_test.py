@@ -32,7 +32,7 @@ def run_dcrlme_oi_test(env_name: str = "halfcheetah_oi", num_iterations: int = 1
     print(f"Num devices: {jax.device_count()}")
     seed = 42
 
-    episode_length = 65
+    episode_length = 32
     min_bd = (0, -1)
     max_bd = (1, 1) 
 
