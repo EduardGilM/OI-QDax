@@ -145,7 +145,6 @@ def k_l_entropy(data, k=1):
 
     jax.debug.print("Data shape: {shape}", shape=data.shape)
     index = annax.Index(data)
-    jax.debug.print("Index data shape: {shape}", shape=index.data.shape)
     distances, _ = index.search(data, k=k + 1)
     epsilon = distances[:, k]
     entropy = (n_dimensions * jnp.mean(jnp.log(epsilon + 1e-10)) + 
