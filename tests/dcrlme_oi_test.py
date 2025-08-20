@@ -1,6 +1,3 @@
-import jax
-jax.config.update("jax_disable_jit", True)
-
 import functools
 from typing import Any, Tuple
 import os
