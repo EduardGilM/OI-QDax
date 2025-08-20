@@ -314,9 +314,10 @@ class LZ76Wrapper(Wrapper):
         """Compute O-Information with fully optimized JAX operations."""
         n_samples, n_vars = obs_sequence.shape
         k = 3
-
+    
+        # Paraleliza el cálculo de h_joint si es batcheado
         h_joint = k_l_entropy(obs_sequence, k)
-
+    
         def compute_h_terms(j, obs_sequence):
             column_j = extract_single_column(obs_sequence, j)
             h_xj = k_l_entropy(column_j, 1)
@@ -325,9 +326,14 @@ class LZ76Wrapper(Wrapper):
             h_excl_j = k_l_entropy(data_excl_j, max(k-1, 1))
             
             term_result = h_xj - h_excl_j
-
             return term_result
     
-        sum_term = jnp.sum(jax.vmap(compute_h_terms, in_axes=(0, None))(jnp.arange(n_vars), obs_sequence))
-
+        pmap_compute_h_terms = jax.pmap(jax.vmap(compute_h_terms, in_axes=(0, None)))
+        
+        devices = jax.devices()
+        arange_sharded = jax.device_put_replicated(jnp.arange(n_vars), devices)
+        obs_sharded = jax.device_put_sharded([obs_sequence] * len(devices), devices)
+    
+        sum_term = jnp.sum(pmap_compute_h_terms(arange_sharded, obs_sharded))
+    
         return (n_vars - 2) * h_joint + sum_term
