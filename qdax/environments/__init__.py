@@ -24,6 +24,7 @@ from qdax.environments.locomotion_wrappers import (
     XYPositionWrapper,
 )
 from qdax.environments.pointmaze import PointMaze
+from qdax.environments.sphere import SphereEnv
 from qdax.environments.wrappers import CompletedEvalWrapper, LZ76Wrapper
 
 # experimentally determinated offset (except for antmaze)
@@ -49,6 +50,7 @@ reward_offset = {
     "pointmaze_oi": 0.0,  
     "grasp_oi": 0.0,
     "fetch_oi": 0.0,
+    "sphere_oi": 0.0,
 }
 
 behavior_descriptor_extractor = {
@@ -72,11 +74,13 @@ behavior_descriptor_extractor = {
     "walker2d_oi": get_lz76_complexity,
     "grasp_oi": get_lz76_complexity,
     "fetch_oi": get_lz76_complexity,
+    "sphere_oi": get_lz76_complexity,
 }
 
 _qdax_envs = {
     "pointmaze": PointMaze,
     "humanoid_w_trap": HumanoidTrap,
+    "sphere": SphereEnv,
 }
 
 _qdax_custom_envs = {
@@ -168,6 +172,11 @@ _qdax_custom_envs = {
     },
     "fetch_oi": {
         "env": "fetch",
+        "wrappers": [LZ76Wrapper],
+        "kwargs": [{}],
+    },
+    "sphere_oi": {
+        "env": "sphere",
         "wrappers": [LZ76Wrapper],
         "kwargs": [{}],
     },

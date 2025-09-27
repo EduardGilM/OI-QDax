@@ -196,6 +196,7 @@ NORMALIZED_LZ76 = {
     "humanoid": (-538.19, 538.19),
     "grasp": (1112, 1088),
     "fetch": (950, 970),
+    "sphere": (100, 800),
 }
 
 NORMALIZED_OI = {
@@ -206,6 +207,7 @@ NORMALIZED_OI = {
     "humanoid": (-538.19, 538.19),
     "grasp": (-800, 1462),
     "fetch": (-600, 1300),
+    "sphere": (-1000, 1000),
 }
 
 class LZ76Wrapper(Wrapper):
