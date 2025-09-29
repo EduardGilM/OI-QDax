@@ -1,16 +1,22 @@
 import jax
 import jax.numpy as jnp
-from brax.v1.envs import Env, State
+from brax.v1.envs import Env
 from flax import struct
 from typing import Optional
 
 @struct.dataclass
+class DummyQP:
+    """Dummy QP class to be compatible with Brax wrappers."""
+    pos: jnp.ndarray
+
+@struct.dataclass
 class SphereState:
     """State for the Sphere environment."""
-    pipeline_state: Optional[None]  # Not used in this env
+    pipeline_state: Optional[None]
     obs: jnp.ndarray
     reward: jnp.ndarray
     done: jnp.ndarray
+    qp: DummyQP
     metrics: dict = struct.field(default_factory=dict)
     info: dict = struct.field(default_factory=dict)
 
@@ -64,7 +70,7 @@ class SphereEnv(Env):
         )
         return all_points.flatten()
 
-    def reset(self, rng: jnp.ndarray) -> State:
+    def reset(self, rng: jnp.ndarray) -> SphereState:
         """Resets the environment to an initial state."""
         # Generate a random initial position
         init_pos = jax.random.uniform(
@@ -77,12 +83,16 @@ class SphereEnv(Env):
         # Generate initial observation
         init_obs = self._generate_observation(init_pos)
 
+        # Create dummy qp
+        dummy_qp = DummyQP(pos=init_pos)
+
         # Initial state
         state = SphereState(
             pipeline_state=None,
             obs=init_obs,
             reward=jnp.zeros(()),
             done=jnp.zeros(()),
+            qp=dummy_qp,
             metrics={"reward": jnp.zeros(())},
             info={
                 "steps": jnp.zeros((), dtype=jnp.int32),
@@ -91,7 +101,7 @@ class SphereEnv(Env):
         )
         return state
 
-    def step(self, state: State, action: jnp.ndarray) -> State:
+    def step(self, state: SphereState, action: jnp.ndarray) -> SphereState:
         """Run one timestep of the environment's dynamics."""
         # The action is the new position, clip it to be within bounds
         new_pos = jnp.clip(action, self.minval, self.maxval)
@@ -106,6 +116,9 @@ class SphereEnv(Env):
         # Generate new observation
         new_obs = self._generate_observation(new_pos)
 
+        # Create dummy qp
+        dummy_qp = DummyQP(pos=new_pos)
+
         # Update state
         new_info = state.info | {"steps": steps, "pos": new_pos}
         state = state.replace(
@@ -113,6 +126,7 @@ class SphereEnv(Env):
             reward=reward,
             done=done,
             info=new_info,
+            qp=dummy_qp,
         )
         state.metrics.update(reward=reward)
 
