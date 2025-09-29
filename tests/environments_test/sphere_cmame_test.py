@@ -42,7 +42,8 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
         n_dimensions=num_dimensions,
         episode_length=episode_length,
         minval=minval,
-        maxval=maxval
+        maxval=maxval,
+        qdax_wrappers_kwargs=[{"episode_length": episode_length}],
     )
 
     # Define scoring function that runs a full episode
