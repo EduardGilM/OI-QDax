@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Dict, Tuple, Type
 import jax
 import jax.numpy as jnp
@@ -17,6 +18,7 @@ from qdax.core.emitters.cma_rnd_emitter import CMARndEmitter
 from qdax.core.map_elites import MAPElites
 from qdax.custom_types import Descriptor, ExtraScores, Fitness, RNGKey
 from qdax.environments import create
+from qdax.utils.plotting import plot_2d_map_elites_repertoire, plot_map_elites_results
 
 @pytest.mark.parametrize(
     "emitter_type",
@@ -27,6 +29,7 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     Test CMA-ME algorithm on the SphereEnv.
     This test also saves a plot of the metrics and a heatmap of the final repertoire.
     """
+    env_name = "sphere_oi"
     num_iterations = 200
     num_dimensions = 10
     episode_length = 50
@@ -40,7 +43,7 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
 
     # Create SphereEnv with LZ76Wrapper
     env = create(
-        "sphere_oi",
+        env_name,
         n_dimensions=num_dimensions,
         episode_length=episode_length,
         minval=minval,
@@ -136,40 +139,33 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     )
 
     # --- Plotting ---
-    os.makedirs("graficas", exist_ok=True)
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    plots_dir = "graficas"
+    os.makedirs(plots_dir, exist_ok=True)
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-    # Plot QD Score
-    axes[0, 0].plot(metrics["qd_score"])
-    axes[0, 0].set_title("QD Score")
-    axes[0, 0].set_xlabel("Iteration")
-    axes[0, 0].set_ylabel("Score")
+    # Metrics plot
+    env_steps = jnp.arange(num_iterations) * batch_size
+    fig, axes = plot_map_elites_results(
+        env_steps=env_steps,
+        metrics=metrics,
+        repertoire=repertoire,
+        min_bd=min_bd,
+        max_bd=max_bd,
+    )
+    fig.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_metrics_{timestamp}.png"))
+    plt.close(fig)
 
-    # Plot Max Fitness
-    axes[0, 1].plot(metrics["max_fitness"])
-    axes[0, 1].set_title("Max Fitness")
-    axes[0, 1].set_xlabel("Iteration")
-    axes[0, 1].set_ylabel("Fitness")
-
-    # Plot Coverage
-    axes[1, 0].plot(metrics["coverage"])
-    axes[1, 0].set_title("Coverage (%)")
-    axes[1, 0].set_xlabel("Iteration")
-    axes[1, 0].set_ylabel("Coverage")
-
-    # Plot Heatmap
-    fitnesses = repertoire.fitnesses.reshape(grid_shape)
-    fitnesses = jnp.where(fitnesses == -jnp.inf, jnp.nan, fitnesses)
-    im = axes[1, 1].pcolormesh(min_bd[0] + jnp.arange(grid_shape[0]) * (max_bd[0] - min_bd[0]) / grid_shape[0],
-                              min_bd[1] + jnp.arange(grid_shape[1]) * (max_bd[1] - min_bd[1]) / grid_shape[1],
-                              fitnesses.T, shading='auto')
-    axes[1, 1].set_title("Final Repertoire Heatmap")
-    axes[1, 1].set_xlabel("LZ Descriptor")
-    axes[1, 1].set_ylabel("OI Descriptor")
-    fig.colorbar(im, ax=axes[1, 1], label="Fitness")
-
-    plt.tight_layout()
-    plt.savefig(f"graficas/sphere_cmame_test_results_{emitter_type.__name__}.png")
+    # Archive plot
+    fig2, ax = plt.subplots(figsize=(10, 10))
+    plot_2d_map_elites_repertoire(
+        repertoire=repertoire,
+        ax=ax,
+        min_bd=min_bd,
+        max_bd=max_bd,
+        title=f"Archive Final - {env_name} with {emitter_type.__name__}",
+    )
+    fig2.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png"))
+    plt.close(fig2)
 
     # Assertions for testing
     assert metrics["coverage"][-1] > 5
