@@ -270,7 +270,12 @@ class LZ76Wrapper(Wrapper):
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
             raw_o_info = jnp.float32(self._compute_o_information(obs_seq))
 
-            env_name = self.env.__class__.__name__.lower()
+            # get the base environment
+            unwrapped_env = self.env
+            while hasattr(unwrapped_env, "env"):
+                unwrapped_env = unwrapped_env.env
+            env_name = unwrapped_env.__class__.__name__.lower()
+
             lz76_min, lz76_max = NORMALIZED_LZ76[env_name]
             oi_min, oi_max = NORMALIZED_OI[env_name]
             
