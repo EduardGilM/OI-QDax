@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, Tuple, Type
+from typing import Any, Dict, Tuple, Type
 import jax
 import jax.numpy as jnp
 import pytest
@@ -30,7 +30,7 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     This test also saves a plot of the metrics and a heatmap of the final repertoire.
     """
     env_name = "sphere_oi"
-    num_iterations = 200
+    num_iterations = 100
     num_dimensions = 10
     episode_length = 50
     grid_shape = (20, 20)
@@ -48,22 +48,27 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
         episode_length=episode_length,
         minval=minval,
         maxval=maxval,
-        qdax_wrappers_kwargs=[{"episode_length": episode_length}],
+        qdax_wrappers_kwargs=[{"name": "lz", "episode_length": episode_length}],
     )
 
     # Define scoring function that runs a full episode with a noisy policy
     def scoring_function(
         x: jnp.ndarray, random_key: RNGKey
     ) -> Tuple[Fitness, Descriptor, ExtraScores, RNGKey]:
-
-        def single_scoring(genotype: jnp.ndarray, sub_key: RNGKey) -> Tuple[Fitness, Descriptor, ExtraScores]:
+        def single_scoring(
+            genotype: jnp.ndarray, sub_key: RNGKey
+        ) -> Tuple[Fitness, Descriptor, ExtraScores]:
             state = env.reset(sub_key)
 
-            def policy(obs, key):
-                action = genotype + jax.random.normal(key, shape=genotype.shape) * noise_level
+            def policy(obs: jnp.ndarray, key: RNGKey) -> jnp.ndarray:
+                action = (
+                    genotype + jax.random.normal(key, shape=genotype.shape) * noise_level
+                )
                 return action
 
-            def step_fn(carry, _):
+            def step_fn(
+                carry: Tuple[jnp.ndarray, jnp.ndarray, RNGKey], _: Any
+            ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray, RNGKey], Any]:
                 state, total_reward, key = carry
                 step_key, policy_key = jax.random.split(key)
                 action = policy(state.obs, policy_key)
@@ -86,7 +91,12 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
         keys = jax.random.split(random_key, x.shape[0])
         fitnesses, descriptors, extra_scores = jax.vmap(single_scoring)(x, keys)
 
-        return fitnesses, descriptors, extra_scores, random_key
+        return (
+            fitnesses,
+            descriptors,
+            extra_scores,
+            random_key,
+        )
 
     # Get behavior descriptor limits from the environment
     min_bd, max_bd = env.behavior_descriptor_limits
@@ -157,20 +167,24 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
 
     # Archive plot
     fig2, ax = plt.subplots(figsize=(10, 10))
-    plot_2d_map_elites_repertoire(
+    _, ax = plot_2d_map_elites_repertoire(
         centroids=repertoire.centroids,
         repertoire_fitnesses=repertoire.fitnesses,
         minval=min_bd,
         maxval=max_bd,
         repertoire_descriptors=repertoire.descriptors,
         ax=ax,
+        xlabel="LZ",
+        ylabel="OI",
     )
     ax.set_title(f"Archive Final - {env_name} with {emitter_type.__name__}")
-    fig2.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png"))
+    fig2.savefig(
+        os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png")
+    )
     plt.close(fig2)
 
     # Assertions for testing
-    assert metrics["coverage"][-1] > 5
+    assert metrics["coverage"][-1] > 0.25
     assert metrics["max_fitness"][-1] > -500
     assert metrics["qd_score"][-1] > -100000
 

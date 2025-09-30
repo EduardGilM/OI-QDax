@@ -268,7 +268,13 @@ class LZ76Wrapper(Wrapper):
 
             obs_binary = action_to_binary_padded(complexity_obs_seq)
             raw_complexity = jnp.float32(LZ76_jax(obs_binary))
-            raw_o_info = jnp.float32(self._compute_o_information(obs_seq))
+            min_samples_for_o_info = 12
+            raw_o_info = lax.cond(
+                obs_seq.shape[0] >= min_samples_for_o_info,
+                self._compute_o_information,
+                lambda x: jnp.float32(0.0),
+                obs_seq,
+            )
 
             # get the base environment
             unwrapped_env = self.env

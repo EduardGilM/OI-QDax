@@ -42,33 +42,15 @@ class SphereEnv(Env):
 
     @property
     def observation_size(self) -> int:
-        # 1 (center) + 2 * n_dimensions (axes)
-        num_points = 1 + 2 * self._n_dimensions
-        return num_points * self._n_dimensions
+        return self._n_dimensions
 
     @property
     def action_size(self) -> int:
         return self._n_dimensions
 
     def _generate_observation(self, position: jnp.ndarray) -> jnp.ndarray:
-        """Generates observation points around the agent's position."""
-        # Create vectors for each axis
-        axis_vectors = jnp.eye(self._n_dimensions) * self._obs_radius
-
-        # Points along positive and negative axes
-        positive_points = position + axis_vectors
-        negative_points = position - axis_vectors
-
-        # Combine all points: center, positive, negative
-        all_points = jnp.concatenate(
-            [
-                position[jnp.newaxis, :],
-                positive_points,
-                negative_points
-            ],
-            axis=0
-        )
-        return all_points.flatten()
+        """The observation is the position of the agent."""
+        return position
 
     def reset(self, rng: jnp.ndarray) -> SphereState:
         """Resets the environment to an initial state."""
@@ -111,7 +93,7 @@ class SphereEnv(Env):
 
         # Update steps and check for termination
         steps = state.info["steps"] + 1
-        done = jnp.where(steps >= self._episode_length, 1.0, 0.0)
+        done = jnp.zeros(())  # Let the EpisodeWrapper handle termination
 
         # Generate new observation
         new_obs = self._generate_observation(new_pos)

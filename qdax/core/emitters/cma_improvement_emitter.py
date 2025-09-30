@@ -64,8 +64,11 @@ class CMAImprovementEmitter(CMAEmitter):
         # criteria: fitness if new cell, improvement else
         ranking_criteria = jnp.where(condition, fitnesses, improvements)
 
-        # make sure to have all the new cells first
-        new_cell_offset = jnp.max(ranking_criteria) - jnp.min(ranking_criteria)
+        # make sure to have all the new cells first.
+        # we add an additional 1e-6 to break ties.
+        new_cell_offset = (
+            jnp.max(ranking_criteria) - jnp.min(ranking_criteria) + 1e-6
+        )
 
         ranking_criteria = jnp.where(
             condition, ranking_criteria + new_cell_offset, ranking_criteria
