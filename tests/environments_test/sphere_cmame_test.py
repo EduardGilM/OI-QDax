@@ -158,12 +158,14 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     # Archive plot
     fig2, ax = plt.subplots(figsize=(10, 10))
     plot_2d_map_elites_repertoire(
-        repertoire=repertoire,
+        centroids=repertoire.centroids,
+        repertoire_fitnesses=repertoire.fitnesses,
+        minval=min_bd,
+        maxval=max_bd,
+        repertoire_descriptors=repertoire.descriptors,
         ax=ax,
-        min_bd=min_bd,
-        max_bd=max_bd,
-        title=f"Archive Final - {env_name} with {emitter_type.__name__}",
     )
+    ax.set_title(f"Archive Final - {env_name} with {emitter_type.__name__}")
     fig2.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png"))
     plt.close(fig2)
 
