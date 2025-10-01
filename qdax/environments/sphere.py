@@ -31,7 +31,8 @@ class SphereEnv(Env):
         episode_length: int = 100,
         minval: float = -5.12,
         maxval: float = 5.12,
-        obs_radius: float = 3.0,
+        obs_radius: float = 1.0,
+        num_adyacentes: int = 4,
     ):
         super().__init__(config=None)
         self._n_dimensions = n_dimensions
@@ -39,18 +40,35 @@ class SphereEnv(Env):
         self.minval = minval
         self.maxval = maxval
         self._obs_radius = obs_radius
+        self._num_adyacentes = num_adyacentes
 
     @property
     def observation_size(self) -> int:
-        return self._n_dimensions
+        # 1 posición actual + 2 vecinos por dimensión (+ y -)
+        return (2 * self._n_dimensions + 1) * self._n_dimensions
 
     @property
     def action_size(self) -> int:
         return self._n_dimensions
 
     def _generate_observation(self, position: jnp.ndarray) -> jnp.ndarray:
-        """The observation is the position of the agent."""
-        return position
+        """The observation is the position of the agent and its adjacent positions within the observation radius.
+        
+        Generates 2 neighbors per dimension (one in each direction +/- obs_radius).
+        """
+        # Generate adjacent positions for ALL dimensions
+        num_neighbors = 2 * self._n_dimensions
+        offsets = jnp.zeros((num_neighbors, self._n_dimensions))
+        
+        # Create offsets: for each dimension, add +obs_radius and -obs_radius
+        for dim in range(self._n_dimensions):
+            offsets = offsets.at[2*dim, dim].set(self._obs_radius)      # positive direction
+            offsets = offsets.at[2*dim + 1, dim].set(-self._obs_radius) # negative direction
+        
+        adyacentes = position + offsets
+        adyacentes = jnp.clip(adyacentes, self.minval, self.maxval)
+        obs = jnp.concatenate([position.reshape(1, -1), adyacentes], axis=0)
+        return obs.flatten()
 
     def reset(self, rng: jnp.ndarray) -> SphereState:
         """Resets the environment to an initial state."""
@@ -85,8 +103,9 @@ class SphereEnv(Env):
 
     def step(self, state: SphereState, action: jnp.ndarray) -> SphereState:
         """Run one timestep of the environment's dynamics."""
-        # The action is the new position, clip it to be within bounds
-        new_pos = jnp.clip(action, self.minval, self.maxval)
+        # The action is a displacement vector added to the current position
+        # This creates temporal correlation: position evolves incrementally
+        new_pos = jnp.clip(state.qp.pos + action, self.minval, self.maxval)
 
         # Calculate reward using the sphere function
         reward = -jnp.sum((new_pos + self.minval * 0.4) * (new_pos + self.minval * 0.4))

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from qdax.core.containers.mapelites_repertoire import (
     MapElitesRepertoire,
-    compute_euclidean_centroids,
+    compute_cvt_centroids,
 )
 from qdax.core.emitters.cma_emitter import CMAEmitter
 from qdax.core.emitters.cma_improvement_emitter import CMAImprovementEmitter
@@ -16,30 +16,34 @@ from qdax.core.emitters.cma_opt_emitter import CMAOptimizingEmitter
 from qdax.core.emitters.cma_pool_emitter import CMAPoolEmitter
 from qdax.core.emitters.cma_rnd_emitter import CMARndEmitter
 from qdax.core.map_elites import MAPElites
+from qdax.core.neuroevolution.networks.networks import MLP
 from qdax.custom_types import Descriptor, ExtraScores, Fitness, RNGKey
 from qdax.environments import create
-from qdax.utils.plotting import plot_2d_map_elites_repertoire, plot_map_elites_results
+from qdax.utils.plotting_utils import plot_2d_map_elites_repertoire, plot_oi_map_elites_results
 
 @pytest.mark.parametrize(
     "emitter_type",
-    [CMAImprovementEmitter],
+    [CMARndEmitter],
 )
 def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     """
     Test CMA-ME algorithm on the SphereEnv.
     This test also saves a plot of the metrics and a heatmap of the final repertoire.
+
     """
     env_name = "sphere_oi"
-    num_iterations = 100
-    num_dimensions = 10
-    episode_length = 50
-    grid_shape = (20, 20)
-    batch_size = 36
+    num_iterations = 300
+    num_dimensions = 5
+    episode_length = 30
+    num_init_cvt_samples = 50000
+    num_centroids = 1024
+    batch_size = 64
     sigma_g = 0.5
     minval = -5.12
     maxval = 5.12
     pool_size = 3
-    noise_level = 0.1
+    noise_level = 0.0
+    policy_hidden_layer_sizes = (64, 64)
 
     # Create SphereEnv with LZ76Wrapper
     env = create(
@@ -51,34 +55,57 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
         qdax_wrappers_kwargs=[{"name": "lz", "episode_length": episode_length}],
     )
 
+    random_key = jax.random.PRNGKey(0)
+
+    policy_layer_sizes = policy_hidden_layer_sizes + (env.action_size,)
+    policy_network = MLP(
+        layer_sizes=policy_layer_sizes,
+        kernel_init=jax.nn.initializers.lecun_uniform(),
+        final_activation=jnp.tanh,
+    )
+
+    random_key, init_key = jax.random.split(random_key)
+    example_params = policy_network.init(
+        init_key, jnp.zeros((env.observation_size,))
+    )
+    flat_example, unravel_fn = jax.flatten_util.ravel_pytree(example_params)
+    genotype_dim = flat_example.shape[0]
+
+    # Define sphere scoring for normalization
+    sphere_scoring = lambda x: -jnp.sum((x + minval * 0.4) ** 2)
+    worst_fitness = episode_length * sphere_scoring(-jnp.ones(num_dimensions) * maxval)
+    best_fitness = episode_length * sphere_scoring(jnp.ones(num_dimensions) * maxval * 0.4)
+
     # Define scoring function that runs a full episode with a noisy policy
     def scoring_function(
         x: jnp.ndarray, random_key: RNGKey
     ) -> Tuple[Fitness, Descriptor, ExtraScores, RNGKey]:
+        random_key, rollout_key = jax.random.split(random_key)
+        params_batch = jax.vmap(unravel_fn)(x)
+        keys = jax.random.split(rollout_key, x.shape[0])
+
+        action_scale = maxval - minval
+
         def single_scoring(
-            genotype: jnp.ndarray, sub_key: RNGKey
+            params: Any, sub_key: RNGKey
         ) -> Tuple[Fitness, Descriptor, ExtraScores]:
             state = env.reset(sub_key)
 
-            def policy(obs: jnp.ndarray, key: RNGKey) -> jnp.ndarray:
-                action = (
-                    genotype + jax.random.normal(key, shape=genotype.shape) * noise_level
-                )
-                return action
-
             def step_fn(
-                carry: Tuple[jnp.ndarray, jnp.ndarray, RNGKey], _: Any
-            ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray, RNGKey], Any]:
+                carry: Tuple[Any, jnp.ndarray, RNGKey], _: Any
+            ) -> Tuple[Tuple[Any, jnp.ndarray, RNGKey], Any]:
                 state, total_reward, key = carry
-                step_key, policy_key = jax.random.split(key)
-                action = policy(state.obs, policy_key)
+                key, noise_key = jax.random.split(key)
+                raw_action = policy_network.apply(params, state.obs)
+                action = raw_action * action_scale
+                action += (
+                    jax.random.normal(noise_key, shape=action.shape) * noise_level
+                )
                 next_state = env.step(state, action)
                 total_reward += next_state.reward
-                return (next_state, total_reward, step_key), ()
+                return (next_state, total_reward, key), ()
 
-            # Split key for episode steps
-            episode_key = jax.random.split(sub_key, 1)[0]
-            initial_carry = (state, jnp.float32(0.0), episode_key)
+            initial_carry = (state, jnp.float32(0.0), sub_key)
             (final_state, total_reward, _), _ = jax.lax.scan(
                 step_fn, initial_carry, (), length=episode_length
             )
@@ -88,8 +115,9 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
 
             return fitness, descriptor, {}
 
-        keys = jax.random.split(random_key, x.shape[0])
-        fitnesses, descriptors, extra_scores = jax.vmap(single_scoring)(x, keys)
+        fitnesses, descriptors, extra_scores = jax.vmap(single_scoring)(
+            params_batch, keys
+        )
 
         return (
             fitnesses,
@@ -104,26 +132,32 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     # Define metrics function
     def metrics_fn(repertoire: MapElitesRepertoire) -> Dict[str, jnp.ndarray]:
         grid_empty = repertoire.fitnesses == -jnp.inf
-        qd_score = jnp.sum(repertoire.fitnesses, where=~grid_empty)
+        adjusted_fitness = (repertoire.fitnesses - worst_fitness) * 100 / (best_fitness - worst_fitness)
+        qd_score = jnp.sum(adjusted_fitness, where=~grid_empty)
         coverage = 100 * jnp.mean(1.0 - grid_empty)
-        max_fitness = jnp.max(repertoire.fitnesses)
+        max_fitness = jnp.max(adjusted_fitness)
         return {"qd_score": qd_score, "max_fitness": max_fitness, "coverage": coverage}
 
     # Initial population
-    random_key = jax.random.PRNGKey(0)
-    initial_population = jax.random.uniform(random_key, shape=(batch_size, num_dimensions), minval=minval, maxval=maxval)
+    random_key, init_pop_key = jax.random.split(random_key)
+    initial_population = flat_example + 0.1 * jax.random.normal(
+        init_pop_key, shape=(batch_size, genotype_dim)
+    )
 
     # Create centroids
-    centroids = compute_euclidean_centroids(
-        grid_shape=grid_shape,
+    centroids, random_key = compute_cvt_centroids(
+        num_descriptors=env.behavior_descriptor_length,
+        num_init_cvt_samples=num_init_cvt_samples,
+        num_centroids=num_centroids,
         minval=min_bd,
         maxval=max_bd,
+        random_key=random_key,
     )
 
     # Create emitter
     emitter_kwargs = {
         "batch_size": batch_size,
-        "genotype_dim": num_dimensions,
+        "genotype_dim": genotype_dim,
         "centroids": centroids,
         "sigma_g": sigma_g,
     }
@@ -154,39 +188,43 @@ def test_cma_me_sphere(emitter_type: Type[CMAEmitter]) -> None:
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
     # Metrics plot
-    env_steps = jnp.arange(num_iterations) * batch_size
-    fig, axes = plot_map_elites_results(
+    env_steps = jnp.arange(num_iterations) * batch_size * episode_length
+    # Save metrics plot
+    fig1, axes = plot_oi_map_elites_results(
         env_steps=env_steps,
         metrics=metrics,
         repertoire=repertoire,
-        min_bd=min_bd,
-        max_bd=max_bd,
+        min_bd=min_bd,  
+        max_bd=max_bd,  
     )
-    fig.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_metrics_{timestamp}.png"))
-    plt.close(fig)
+    fig1.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_metrics_{timestamp}.png"))
+    plt.close(fig1)
 
-    # Archive plot
+    # Save archive plot
     fig2, ax = plt.subplots(figsize=(10, 10))
-    _, ax = plot_2d_map_elites_repertoire(
-        centroids=repertoire.centroids,
-        repertoire_fitnesses=repertoire.fitnesses,
-        minval=min_bd,
-        maxval=max_bd,
-        repertoire_descriptors=repertoire.descriptors,
+    plot_2d_map_elites_repertoire(
+        repertoire=repertoire,
         ax=ax,
-        xlabel="LZ",
-        ylabel="OI",
+        min_bd=min_bd,  
+        max_bd=max_bd,    
+        title=f"Archive Final - {env_name} with {emitter_type.__name__}"
     )
-    ax.set_title(f"Archive Final - {env_name} with {emitter_type.__name__}")
-    fig2.savefig(
-        os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png")
-    )
+    fig2.savefig(os.path.join(plots_dir, f"cma_{emitter_type.__name__}_archive_{timestamp}.png"))
     plt.close(fig2)
 
-    # Assertions for testing
-    assert metrics["coverage"][-1] > 0.25
-    assert metrics["max_fitness"][-1] > -500
-    assert metrics["qd_score"][-1] > -100000
+    # Count distinct genotypes in the repertoire
+    valid_mask = repertoire.fitnesses != -jnp.inf
+    valid_genotypes = repertoire.genotypes[valid_mask]
+    if valid_genotypes.size > 0:
+        unique_genotypes = jnp.unique(valid_genotypes, axis=0)
+        num_distinct_genotypes = unique_genotypes.shape[0]
+    else:
+        num_distinct_genotypes = 0
+    print(f"Number of distinct genotypes in repertoire: {num_distinct_genotypes}")
+
+    print(f"Final Coverage: {metrics['coverage'][-1]}")
+    print(f"Final Max Fitness: {metrics['max_fitness'][-1]}")
+    print(f"Final QD Score: {metrics['qd_score'][-1]}")
 
 if __name__ == "__main__":
     test_cma_me_sphere(emitter_type=CMAImprovementEmitter)

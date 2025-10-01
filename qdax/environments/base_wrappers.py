@@ -106,16 +106,27 @@ class StateDescriptorResetWrapper(QDWrapper):
         return state
 
     def step(self, state: State, action: jp.ndarray) -> State:
-
-        state = self.env.step(state, action)
-
-        def where_done(x: jp.ndarray, y: jp.ndarray) -> jp.ndarray:
+        def where_done_pre(x: jp.ndarray, y: jp.ndarray) -> jp.ndarray:
             done = state.done
             if done.shape:
                 done = jp.reshape(done, tuple([x.shape[0]] + [1] * (len(x.shape) - 1)))
             return jp.where(done, x, y)
 
-        state.info["state_descriptor"] = where_done(
+        if "state_descriptor" in state.info:
+            state.info["state_descriptor"] = where_done_pre(
+                state.info["first_state_descriptor"], state.info["state_descriptor"]
+            )
+
+        state = self.env.step(state, action)
+
+        def update_first_descriptor(first_sd: jp.ndarray, current_sd: jp.ndarray) -> jp.ndarray:
+            done = state.done
+            if done.shape:
+                done = jp.reshape(done, tuple([first_sd.shape[0]] + [1] * (len(first_sd.shape) - 1)))
+            return jp.where(done, current_sd, first_sd)
+
+        state.info["first_state_descriptor"] = update_first_descriptor(
             state.info["first_state_descriptor"], state.info["state_descriptor"]
         )
+
         return state

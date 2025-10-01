@@ -196,7 +196,7 @@ NORMALIZED_LZ76 = {
     "humanoid": (-538.19, 538.19),
     "grasp": (1112, 1088),
     "fetch": (950, 970),
-    "sphereenv": (100, 800),
+    "sphereenv": (22, 49),
 }
 
 NORMALIZED_OI = {
@@ -207,7 +207,7 @@ NORMALIZED_OI = {
     "humanoid": (-538.19, 538.19),
     "grasp": (-800, 1462),
     "fetch": (-600, 1300),
-    "sphereenv": (-1000, 1000),
+    "sphereenv": (175, 350),
 }
 
 class LZ76Wrapper(Wrapper):
@@ -288,10 +288,10 @@ class LZ76Wrapper(Wrapper):
             normalized_complexity = jnp.clip((raw_complexity - lz76_min) / (lz76_max - lz76_min), 0.0, 1.0)
             normalized_o_info = jnp.clip(2.0 * ((raw_o_info - oi_min) / (oi_max - oi_min)) - 1.0, -1.0, 1.0)
 
-            #jax.debug.print("Raw complexity: {x}", x=raw_complexity)
-            #jax.debug.print("Raw o-info: {x}", x=raw_o_info)
-            #jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
-            #jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
+            jax.debug.print("Raw LZ complexity: {x}", x=raw_complexity)
+            jax.debug.print("Raw OI: {x}", x=raw_o_info)
+            jax.debug.print("Normalized complexity: {x}", x=normalized_complexity)
+            jax.debug.print("Normalized o-info: {x}", x=normalized_o_info)
             
             return raw_complexity, raw_o_info, jnp.array([normalized_complexity, normalized_o_info])
         
