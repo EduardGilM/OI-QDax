@@ -197,6 +197,7 @@ NORMALIZED_LZ76 = {
     "grasp": (1112, 1088),
     "fetch": (950, 970),
     "sphereenv": (22, 49),
+    "rastriginenv": (19, 49),
 }
 
 NORMALIZED_OI = {
@@ -208,6 +209,7 @@ NORMALIZED_OI = {
     "grasp": (-800, 1462),
     "fetch": (-600, 1300),
     "sphereenv": (175, 350),
+    "rastriginenv": (215, 350),
 }
 
 class LZ76Wrapper(Wrapper):
