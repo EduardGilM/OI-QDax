@@ -196,8 +196,8 @@ NORMALIZED_LZ76 = {
     "humanoid": (-538.19, 538.19),
     "grasp": (1112, 1088),
     "fetch": (950, 970),
-    "sphereenv": (22, 49),
-    "rastriginenv": (19, 49),
+    "sphereenv": (81, 210),
+    "rastriginenv": (156, 233),
 }
 
 NORMALIZED_OI = {
