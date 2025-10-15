@@ -44,7 +44,6 @@ class SphereEnv(Env):
 
     @property
     def observation_size(self) -> int:
-        # 1 posición actual + 2 vecinos por dimensión (+ y -)
         return (2 * self._n_dimensions + 1) * self._n_dimensions
 
     @property
