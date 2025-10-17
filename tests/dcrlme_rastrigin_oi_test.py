@@ -31,7 +31,7 @@ def run_dcrlme_rastrigin_oi_test(num_iterations: int = 10) -> None:
     seed = 42
 
     env_name = "rastrigin_oi"
-    num_dimensions = 5
+    num_dimensions = 3
     episode_length = 30
     minval = -5.12
     maxval = 5.12
@@ -153,7 +153,7 @@ def run_dcrlme_rastrigin_oi_test(num_iterations: int = 10) -> None:
 
     # Prepare the scoring function
     bd_extraction_fn = behavior_descriptor_extractor[env_name]
-    scoring_fn = functools.partial(
+    base_scoring_fn = functools.partial(
         reset_based_scoring_function_brax_envs,
         episode_length=episode_length,
         play_reset_fn=reset_fn,
@@ -174,13 +174,17 @@ def run_dcrlme_rastrigin_oi_test(num_iterations: int = 10) -> None:
     # Best fitness: when x is at global optimum (0)
     best_fitness = episode_length * rastrigin_scoring(jnp.zeros(num_dimensions))
 
-    # Define a custom metrics function with normalized fitness
+    # Wrapper to normalize fitness before saving to repertoire
+    def scoring_fn(genotypes, random_key):
+        fitnesses, descriptors, extra_scores, random_key = base_scoring_fn(genotypes, random_key)
+        normalized_fitnesses = (fitnesses - worst_fitness) * 100 / (best_fitness - worst_fitness)
+        return normalized_fitnesses, descriptors, extra_scores, random_key
+
     def metrics_fn(repertoire: MapElitesRepertoire) -> Dict[str, jnp.ndarray]:
         grid_empty = repertoire.fitnesses == -jnp.inf
-        adjusted_fitness = (repertoire.fitnesses - worst_fitness) * 100 / (best_fitness - worst_fitness)
-        qd_score = jnp.sum(adjusted_fitness, where=~grid_empty)
+        qd_score = jnp.sum(repertoire.fitnesses, where=~grid_empty)
         coverage = 100 * jnp.mean(1.0 - grid_empty)
-        max_fitness = jnp.max(adjusted_fitness)
+        max_fitness = jnp.max(repertoire.fitnesses, where=~grid_empty, initial=-jnp.inf)
         return {"qd_score": qd_score, "max_fitness": max_fitness, "coverage": coverage}
     
     metrics_function = metrics_fn
@@ -305,7 +309,7 @@ def test_dcrlme_rastrigin_oi(num_iterations: int) -> None:
 
 if __name__ == "__main__":
     # Run with more iterations for actual experiments
-    repertoire = run_dcrlme_rastrigin_oi_test(num_iterations=3000)
+    repertoire = run_dcrlme_rastrigin_oi_test(num_iterations=100)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     repertoire_path = f"./repertoires/dcrlm_rastrigin_oi/{timestamp}/"
     os.makedirs(repertoire_path, exist_ok=True)

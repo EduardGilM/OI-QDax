@@ -127,8 +127,11 @@ def test_cma_me_rastrigin(emitter_type: Type[CMAEmitter]) -> None:
             params_batch, keys
         )
 
+        # Normalize fitness to [0, 100] range (0 = worst, 100 = best)
+        normalized_fitnesses = (fitnesses - worst_fitness) * 100 / (best_fitness - worst_fitness)
+
         return (
-            fitnesses,
+            normalized_fitnesses,
             descriptors,
             extra_scores,
             random_key,
@@ -137,13 +140,12 @@ def test_cma_me_rastrigin(emitter_type: Type[CMAEmitter]) -> None:
     # Get behavior descriptor limits from the environment
     min_bd, max_bd = env.behavior_descriptor_limits
 
-    # Define metrics function
+    # Define metrics function (now fitness is already normalized)
     def metrics_fn(repertoire: MapElitesRepertoire) -> Dict[str, jnp.ndarray]:
         grid_empty = repertoire.fitnesses == -jnp.inf
-        adjusted_fitness = (repertoire.fitnesses - worst_fitness) * 100 / (best_fitness - worst_fitness)
-        qd_score = jnp.sum(adjusted_fitness, where=~grid_empty)
+        qd_score = jnp.sum(repertoire.fitnesses, where=~grid_empty)
         coverage = 100 * jnp.mean(1.0 - grid_empty)
-        max_fitness = jnp.max(adjusted_fitness)
+        max_fitness = jnp.max(repertoire.fitnesses, where=~grid_empty, initial=-jnp.inf)
         return {"qd_score": qd_score, "max_fitness": max_fitness, "coverage": coverage}
 
     # Initial population
